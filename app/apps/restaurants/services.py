@@ -272,6 +272,7 @@ class ProductService:
             _id=ObjectId(),
             nome=sanitize_input(data['nome'].strip()),
             descricao=sanitize_input(data.get('descricao', '')),
+            ingredientes_principais=sanitize_input(data['ingredientes_principais'].strip()),
             preco=data['preco'],
             categoria=data['categoria'],
             imagem_url=main_image_url,
@@ -300,14 +301,14 @@ class ProductService:
         produto = self._find_product(restaurante, product_id)
 
         campos_permitidos = [
-            'nome', 'descricao', 'preco', 'categoria', 
+            'nome', 'descricao', 'ingredientes_principais', 'preco', 'categoria', 
             'esta_disponivel', 'ordem', 'estoque', 'ingredientes'
         ]
 
         for field in campos_permitidos:
             if field in data:
                 val = data[field]
-                if field in ('nome', 'descricao') and isinstance(val, str):
+                if field in ('nome', 'descricao', 'ingredientes_principais') and isinstance(val, str):
                     val = sanitize_input(val)
                 elif field == 'ingredientes' and isinstance(val, list):
                     val = [

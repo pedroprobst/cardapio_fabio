@@ -6,14 +6,16 @@ Armazena avaliações de clientes para restaurantes e pedidos específicos.
 from datetime import datetime, timezone
 
 import mongoengine as me
+from bson import ObjectId
 
 
-class Avaliacao(me.Document):
+class Avaliacao(me.EmbeddedDocument):
     """
-    Documento de avaliação armazenado na coleção MongoDB 'avaliacoes'.
+    Documento de avaliação embarcado dentro de Restaurante.
 
     Cada avaliação vincula um cliente a um restaurante (e opcionalmente a um pedido).
     """
+    _id = me.ObjectIdField(required=True, default=ObjectId)
     cliente_id = me.ObjectIdField(required=True)
     nome_cliente = me.StringField(required=True, max_length=100)
     restaurante_id = me.ObjectIdField(required=True)
@@ -23,19 +25,12 @@ class Avaliacao(me.Document):
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
 
     meta = {
-        'collection': 'avaliacoes',
-        'indexes': [
-            {'fields': ['restaurante_id', '-criado_em']},
-            {'fields': ['cliente_id']},
-            {'fields': ['pedido_id'], 'sparse': True},
-        ],
-        'ordering': ['-criado_em'],
         'strict': False,
     }
 
     def to_dict(self) -> dict:
         return {
-            'id': str(self.id),
+            'id': str(self._id),
             'cliente_id': str(self.cliente_id),
             'nome_cliente': self.nome_cliente,
             'restaurante_id': str(self.restaurante_id),

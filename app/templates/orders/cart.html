@@ -25,8 +25,9 @@
                 <span class="text-lg font-semibold text-gray-800">Total Geral</span>
                 <span id="cart-total" class="text-2xl font-bold text-red-500">R$ 0,00</span>
             </div>
-            <div class="flex gap-3">
-                <button onclick="Cart.clear(); renderCart();" class="w-full py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">Limpar Carrinho</button>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="Cart.clear(); renderCart();" class="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 text-sm font-medium hover:bg-gray-50 transition-colors">Limpar Carrinho</button>
+                <a href="/checkout/" class="flex-1 btn-primary py-3 rounded-xl text-white font-semibold text-center flex items-center justify-center shadow-lg shadow-red-500/20">Finalizar Tudo</a>
             </div>
         </div>
     </div>

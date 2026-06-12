@@ -125,6 +125,12 @@
 
                 <p id="pm-desc" class="text-gray-500 text-sm leading-relaxed mb-6"></p>
 
+                <!-- NOVA SEÇÃO: Ingredientes Principais -->
+                <div id="pm-ingredients-section" class="mb-6 hidden">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ingredientes</h3>
+                    <p id="pm-ingredients-list" class="text-gray-600 text-sm leading-relaxed"></p>
+                </div>
+
                 <!-- NOVA SEÇÃO: Adicionais -->
                 <div id="pm-extras-section" class="mb-8">
                     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Adicionais</h3>
@@ -306,6 +312,16 @@
         // Populating basic data
         document.getElementById('pm-name').textContent = p.nome;
         document.getElementById('pm-desc').textContent = p.descricao || 'Sem descrição detalhada.';
+        
+        const ingSection = document.getElementById('pm-ingredients-section');
+        const ingList = document.getElementById('pm-ingredients-list');
+        if (p.ingredientes_principais) {
+            ingList.textContent = p.ingredientes_principais;
+            ingSection.classList.remove('hidden');
+        } else {
+            ingSection.classList.add('hidden');
+        }
+        
         const cats = { entrada: 'Entrada', principal: 'Prato Principal', sobremesa: 'Sobremesa', bebida: 'Bebida', combo: 'Combo' };
         document.getElementById('pm-category').textContent = cats[p.categoria] || p.categoria;
         

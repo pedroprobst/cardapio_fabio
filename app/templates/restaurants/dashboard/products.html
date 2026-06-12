@@ -88,13 +88,17 @@
             <input type="hidden" id="pf-id" value="">
             <div>
                 <label class="block text-sm font-medium text-gray-600 mb-1">Nome *</label>
-                <input type="text" id="pf-name" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
+                <input type="text" id="pf-name" required maxlength="100" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-600 mb-1">Descrição</label>
-                <textarea id="pf-desc" rows="2" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm resize-none outline-none focus:border-red-400 transition-colors"></textarea>
+                <textarea id="pf-desc" rows="2" maxlength="500" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm resize-none outline-none focus:border-red-400 transition-colors"></textarea>
             </div>
-
+            <div>
+                <label class="block text-sm font-medium text-gray-600 mb-1">Ingredientes do Produto (obrigatório) *</label>
+                <textarea id="pf-main-ingredients" required maxlength="300" rows="2" placeholder="Ex: Pão de brioche, blend bovino 150g, queijo cheddar, maionese artesanal" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm resize-none outline-none focus:border-red-400 transition-colors"></textarea>
+            </div>
+ 
             <!-- NOVA SEÇÃO: Ingredientes/Adicionais com Preço -->
             <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100">
                 <label class="block text-sm font-bold text-gray-700 mb-3 flex justify-between items-center">
@@ -108,11 +112,11 @@
                 </div>
                 <p class="text-[10px] text-gray-400 mt-2 italic">* Use preço 0.00 para apenas listar o ingrediente sem cobrar extra.</p>
             </div>
-
+ 
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-600 mb-1">Preço Base (R$) *</label>
-                    <input type="text" id="pf-price" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
+                    <input type="text" id="pf-price" required maxlength="10" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-600 mb-1">Categoria *</label>
@@ -128,11 +132,11 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-600 mb-1">Estoque</label>
-                    <input type="number" id="pf-stock" value="-1" min="-1" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
+                    <input type="number" id="pf-stock" value="-1" min="-1" max="999999" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-gray-600 mb-1">Ordem</label>
-                    <input type="number" id="pf-order" value="0" min="0" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
+                    <input type="number" id="pf-order" value="0" min="0" max="999999" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none focus:border-red-400 transition-colors">
                 </div>
             </div>
             <div>
@@ -170,9 +174,9 @@
         
         const html = `
             <div id="${id}" class="flex items-center gap-2 ingrediente-item">
-                <input type="text" name="ing_nome" value="${nome}" placeholder="Ex: Queijo Extra" 
+                <input type="text" name="ing_nome" value="${nome}" required maxlength="100" placeholder="Ex: Queijo Extra" 
                        class="flex-1 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-800 text-xs outline-none focus:border-red-400 transition-colors">
-                <input type="number" name="ing_preco" value="${precoVal}" step="0.01" placeholder="R$ 0,00"
+                <input type="number" name="ing_preco" value="${precoVal}" required min="0" max="99999" step="0.01" placeholder="R$ 0,00"
                        class="w-24 px-3 py-2 rounded-lg bg-white border border-gray-200 text-gray-800 text-xs outline-none focus:border-red-400 transition-colors">
                 <button type="button" onclick="document.getElementById('${id}').remove()" class="p-2 text-gray-400 hover:text-red-500 transition-colors">
                     <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -303,6 +307,7 @@
         document.getElementById('pf-id').value = product ? product.id : '';
         document.getElementById('pf-name').value = product ? product.nome : '';
         document.getElementById('pf-desc').value = product ? (product.descricao || '') : '';
+        document.getElementById('pf-main-ingredients').value = product ? (product.ingredientes_principais || '') : '';
         document.getElementById('pf-price').value = product ? MoneyHelper.format(product.preco) : '';
         document.getElementById('pf-category').value = product ? product.categoria : 'principal';
         document.getElementById('pf-stock').value = product ? product.estoque : -1;
@@ -381,6 +386,7 @@
     const formData = new FormData();
     formData.append('nome', document.getElementById('pf-name').value);
     formData.append('descricao', document.getElementById('pf-desc').value);
+    formData.append('ingredientes_principais', document.getElementById('pf-main-ingredients').value);
     formData.append('preco', MoneyHelper.unmask(document.getElementById('pf-price').value));
     formData.append('categoria', document.getElementById('pf-category').value);
     formData.append('estoque', document.getElementById('pf-stock').value);

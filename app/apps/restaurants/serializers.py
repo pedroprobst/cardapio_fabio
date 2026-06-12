@@ -46,6 +46,7 @@ class UpdateRestaurantSerializer(serializers.Serializer):
 class CreateProductSerializer(serializers.Serializer):
     nome = serializers.CharField(max_length=100)
     descricao = serializers.CharField(max_length=500, required=False, allow_blank=True, default='')
+    ingredientes_principais = serializers.CharField(max_length=300, required=True, allow_blank=False)
     preco = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01)
     categoria = serializers.ChoiceField(choices=['entrada', 'principal', 'sobremesa', 'bebida', 'combo'])
     esta_disponivel = serializers.BooleanField(default=True)
@@ -56,6 +57,7 @@ class CreateProductSerializer(serializers.Serializer):
 class UpdateProductSerializer(serializers.Serializer):
     nome = serializers.CharField(max_length=100, required=False)
     descricao = serializers.CharField(max_length=500, required=False, allow_blank=True)
+    ingredientes_principais = serializers.CharField(max_length=300, required=False, allow_blank=False)
     preco = serializers.DecimalField(max_digits=10, decimal_places=2, min_value=0.01, required=False)
     categoria = serializers.ChoiceField(choices=['entrada', 'principal', 'sobremesa', 'bebida', 'combo'], required=False)
     esta_disponivel = serializers.BooleanField(required=False)

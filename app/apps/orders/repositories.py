@@ -40,10 +40,22 @@ class RepositorioPedido(BaseRepository[Pedido]):
         tamanho_pagina: int = 20,
     ) -> PaginatedResult:
         """Lista pedidos de um restaurante com filtro opcional de status."""
-        filtros: dict = {'restaurante_id': ObjectId(restaurante_id)}
+        rid = ObjectId(restaurante_id)
         if filtro_status:
-            filtros['status'] = filtro_status
-        return self.paginate(page=pagina, page_size=tamanho_pagina, **filtros)
+            raw_query = {
+                '$or': [
+                    {'restaurante_id': rid, 'status': filtro_status},
+                    {'sub_pedidos': {'$elemMatch': {'restaurante_id': rid, 'status': filtro_status}}}
+                ]
+            }
+        else:
+            raw_query = {
+                '$or': [
+                    {'restaurante_id': rid},
+                    {'sub_pedidos.restaurante_id': rid}
+                ]
+            }
+        return self.paginate(page=pagina, page_size=tamanho_pagina, __raw__=raw_query)
 
     def buscar_por_id(self, pedido_id: str) -> Pedido | None:
         """Busca um pedido por ID."""

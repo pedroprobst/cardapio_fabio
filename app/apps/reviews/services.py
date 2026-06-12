@@ -54,12 +54,16 @@ class ReviewService:
             nota=nota,
             comentario=sanitize_input(comentario) if comentario else '',
         )
-        self.repo.save(avaliacao)
 
-        # Atualiza a nota do restaurante usando agregação
-        rating_data = self.repo.obter_avaliacao_restaurante(restaurante_id)
-        restaurante.avaliacao.media = rating_data['media']
-        restaurante.avaliacao.contagem = rating_data['contagem']
+        # Adiciona a avaliação à lista embarcada do restaurante
+        restaurante.avaliacoes.append(avaliacao)
+
+        # Atualiza a nota e contagem do restaurante diretamente em memória
+        notas = [av.nota for av in restaurante.avaliacoes]
+        restaurante.avaliacao.media = round(sum(notas) / len(notas), 1) if notas else 0.0
+        restaurante.avaliacao.contagem = len(notas)
+
+        # Salva o restaurante, o que persiste as avaliações embarcadas
         self.restaurant_repo.save(restaurante)
 
         logger.info(

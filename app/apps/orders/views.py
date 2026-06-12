@@ -89,12 +89,22 @@ class DetalhePedidoView(APIView):
                 )
         elif request.user.papel == PerfilUsuario.DONO:
             repo = RepositorioRestaurante()
-            restaurante = repo.buscar_por_id_e_dono(resultado['restaurante_id'], str(request.user.id))
+            restaurante = None
+            if resultado.get('restaurante_id'):
+                restaurante = repo.buscar_por_id_e_dono(resultado['restaurante_id'], str(request.user.id))
+            
+            if not restaurante and resultado.get('sub_pedidos'):
+                for sp in resultado['sub_pedidos']:
+                    restaurante = repo.buscar_por_id_e_dono(sp['restaurante_id'], str(request.user.id))
+                    if restaurante:
+                        break
+            
             if not restaurante:
                 return Response(
                     {'error': 'Acesso negado.'},
                     status=status.HTTP_403_FORBIDDEN,
                 )
+            servico._filtrar_pedido_para_restaurante(resultado, str(restaurante.id))
 
         return Response(resultado)
 
@@ -130,7 +140,16 @@ class StatusPedidoView(APIView):
                 )
         elif request.user.papel == PerfilUsuario.DONO:
             repo = RepositorioRestaurante()
-            restaurante = repo.buscar_por_id_e_dono(pedido['restaurante_id'], str(request.user.id))
+            restaurante = None
+            if pedido.get('restaurante_id'):
+                restaurante = repo.buscar_por_id_e_dono(pedido['restaurante_id'], str(request.user.id))
+            
+            if not restaurante and pedido.get('sub_pedidos'):
+                for sp in pedido['sub_pedidos']:
+                    restaurante = repo.buscar_por_id_e_dono(sp['restaurante_id'], str(request.user.id))
+                    if restaurante:
+                        break
+            
             if not restaurante:
                 return Response({'error': 'Acesso negado.'}, status=status.HTTP_403_FORBIDDEN)
 
@@ -139,6 +158,7 @@ class StatusPedidoView(APIView):
             novo_status=novo_status,
             alterado_por=str(request.user.id),
             motivo=serializer.validated_data.get('motivo_cancelamento'),
+            restaurante_id=str(restaurante.id) if request.user.papel == PerfilUsuario.DONO else None,
         )
         return Response(resultado)
 

@@ -1,6 +1,9 @@
 from datetime import datetime, timezone
 import mongoengine as me
 
+# pyrefly: ignore [missing-import]
+from apps.reviews.documents import Avaliacao as AvaliacaoReview
+
 class Contato(me.EmbeddedDocument):
     """Informações de contato embarcadas de um restaurante."""
     telefone = me.StringField(max_length=20, required=True)
@@ -63,6 +66,7 @@ class Produto(me.EmbeddedDocument):
     esta_disponivel = me.BooleanField(default=True)
     ordem = me.IntField(default=0)
     estoque = me.IntField(default=-1)
+    ingredientes_principais = me.StringField(required=True, max_length=300, default='')
     ingredientes = me.EmbeddedDocumentListField(Ingrediente, default=list) # Nova funcionalidade
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
     atualizado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
@@ -80,6 +84,7 @@ class Produto(me.EmbeddedDocument):
             'id': str(self._id),
             'nome': self.nome,
             'descricao': self.descricao or '',
+            'ingredientes_principais': self.ingredientes_principais or '',
             'preco': preco_val,
             'categoria': self.categoria,
             'imagem_url': self.imagem_url or '',
@@ -143,6 +148,7 @@ class Restaurante(me.Document):
     tempo_entrega_estimado = me.StringField(max_length=50, default='40-50 min')
     status = me.StringField(choices=OPCOES_STATUS, default='ativo')
     avaliacao = me.EmbeddedDocumentField(Avaliacao, default=Avaliacao)
+    avaliacoes = me.EmbeddedDocumentListField(AvaliacaoReview, default=list)
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
     atualizado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
 

@@ -34,7 +34,7 @@
                 <div class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1.5">Nome Completo</label>
-                        <input type="text" id="profile-name" required class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 outline-none focus:bg-white transition-colors">
+                        <input type="text" id="profile-name" required maxlength="100" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 outline-none focus:bg-white transition-colors">
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1.5">Email</label>
@@ -42,7 +42,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1.5">Telefone (opcional)</label>
-                        <input type="text" id="profile-phone" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 outline-none focus:bg-white transition-colors" placeholder="(00) 00000-0000">
+                        <input type="text" id="profile-phone" maxlength="15" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 outline-none focus:bg-white transition-colors" placeholder="(00) 00000-0000">
                     </div>
                 </div>
                 <div class="mt-6 flex justify-end">
@@ -59,7 +59,7 @@
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-600 mb-1.5">Nova Senha</label>
-                        <input type="password" id="new-password" required minlength="8" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 outline-none focus:bg-white transition-colors">
+                        <input type="password" id="new-password" required minlength="8" maxlength="32" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 outline-none focus:bg-white transition-colors">
                     </div>
                 </div>
                 <div class="mt-6 flex justify-end">
@@ -107,5 +107,6 @@
     });
 
     loadProfile();
+    PhoneHelper.init('profile-phone');
 </script>
 {% endblock %}

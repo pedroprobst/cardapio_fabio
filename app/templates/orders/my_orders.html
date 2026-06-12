@@ -37,7 +37,7 @@
             <input type="hidden" id="review-rating" value="0">
             <div>
                 <label class="block text-sm font-medium text-gray-600 mb-1">Comentário (opcional)</label>
-                <textarea id="review-comment" rows="3" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 outline-none focus:bg-white text-sm resize-none" placeholder="Conte como foi sua experiência..."></textarea>
+                <textarea id="review-comment" rows="3" maxlength="500" class="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 placeholder-gray-400 outline-none focus:bg-white text-sm resize-none" placeholder="Conte como foi sua experiência..."></textarea>
             </div>
             <div class="mt-6 flex gap-3">
                 <button type="button" onclick="closeReviewModal()" class="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">Cancelar</button>
@@ -84,6 +84,7 @@
                                     </p>
                                 `).join('')}
                             </div>
+                            <!-- CORREÇÃO: Exibe o total do pedido vindo do snapshot do banco -->
                             <p class="text-xs font-bold text-gray-700 mt-2">Total: ${formatMoney(o.total)}</p>
                             <p class="text-[10px] text-gray-400 mt-1">${new Date(o.criado_em).toLocaleDateString('pt-BR')} às ${new Date(o.criado_em).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
                         </div>
@@ -107,7 +108,7 @@
         }
     }
     
-    // Lógica de Avaliação (Estrelas)
+    // Lógica de Avaliação (Estrelas) e reorder permanecem as mesmas
     document.querySelectorAll('.star-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const rating = parseInt(btn.dataset.rating);
@@ -153,21 +154,10 @@
         finally { btn.textContent = 'Enviar Avaliação'; btn.disabled = false; }
     });
 
-    /**
-     * Refaz o pedido injetando novamente os itens e seus extras no carrinho.
-     */
     function reorder(restaurantId, restaurantName, items) {
-        // Opcional: Limpar o carrinho antes ou apenas adicionar os itens?
-        // Aqui limpamos para garantir que o pedido seja identico ao antigo
         Cart.clear();
-
         items.forEach(i => {
             const extras = i.extras || [];
-            
-            // LÓGICA DE PREÇO: 
-            // Se i.preco já é o preço unitário final (Base + Extras), 
-            // precisamos subtrair os extras para mandar o Preço Base correto para o Cart.add,
-            // pois o Cart.add vai somar os extras novamente.
             const extrasTotal = extras.reduce((sum, e) => sum + parseFloat(e.preco || 0), 0);
             const unitPriceFromOrder = parseFloat(i.preco);
             const precoBaseOriginal = unitPriceFromOrder - extrasTotal;
@@ -179,11 +169,9 @@
                 imagem_url: i.imagem_url 
             };
             
-            // Adiciona ao carrinho com os extras (o Cart.add vai calcular o unitPrice correto)
             Cart.add(baseProduct, restaurantId, restaurantName, extras);
             
-            // Se a quantidade era maior que 1, atualizamos no carrinho usando o UniqueID
-            const qty = i.quantidade || i.quantity || 1;
+            const qty = i.quantidade || 1;
             if (qty > 1) {
                 const extrasKey = extras.map(e => e.nome).sort().join('|');
                 const uniqueId = extrasKey ? `${i.produto_id}-${extrasKey}` : i.produto_id;
