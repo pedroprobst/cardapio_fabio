@@ -113,8 +113,8 @@ DATABASES = {
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import mongoengine
 
-MONGODB_URI = config('MONGODB_URI', default='mongodb://localhost:27017/cardapio_online')
-MONGODB_NAME = config('MONGODB_NAME', default='cardapio_online')
+MONGODB_URI = config('MONGODB_URI', default='mongodb://localhost:27017/cardapio_online_v2')
+MONGODB_NAME = config('MONGODB_NAME', default='cardapio_online_v2')
 
 mongoengine.connect(
     db=MONGODB_NAME,
