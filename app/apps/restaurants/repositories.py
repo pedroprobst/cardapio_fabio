@@ -101,12 +101,19 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
                 'imagem_url': {'$ifNull': ['$pratos.imagem_url', '']},
                 'imagens': {'$ifNull': ['$pratos.imagens', []]},
                 'esta_disponivel': '$pratos.esta_disponivel',
-                # AJUSTE AQUI: Transforma lista de objetos de ingredientes em lista de strings
+                'ingredientes_principais': {'$ifNull': ['$pratos.ingredientes_principais', '']},
+                'estoque': {'$ifNull': ['$pratos.estoque', -1]},
+                'taxa_entrega': {'$toDouble': {'$ifNull': ['$taxa_entrega', 0]}},
+                'tempo_entrega_estimado': {'$ifNull': ['$tempo_entrega_estimado', '40-50 min']},
+                'avaliacao': '$avaliacao',
                 'ingredientes': {
                     '$map': {
                         'input': {'$ifNull': ['$pratos.ingredientes', []]},
                         'as': 'ing',
-                        'in': '$$ing.nome'
+                        'in': {
+                            'nome': '$$ing.nome',
+                            'preco': {'$toDouble': '$$ing.preco'}
+                        }
                     }
                 },
                 'restaurante_id': {'$toString': '$_id'},
