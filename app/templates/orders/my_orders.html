@@ -53,6 +53,67 @@
     const statusLabels = { pendente: 'Pendente', confirmado: 'Confirmado', preparando: 'Preparando', pronto: 'Pronto', entregue: 'Entregue', cancelado: 'Cancelado' };
     const statusBg = { pendente: 'bg-amber-100 text-amber-700', confirmado: 'bg-blue-100 text-blue-700', preparando: 'bg-violet-100 text-violet-700', pronto: 'bg-emerald-100 text-emerald-700', entregue: 'bg-emerald-100 text-emerald-700', cancelado: 'bg-red-100 text-red-700' };
 
+    function renderOrderItems(order) {
+        // Preferir sub_pedidos — renderizar itens agrupados por restaurante
+        const subs = order.sub_pedidos || [];
+        if (subs.length > 0) {
+            return subs.map(sp => `
+                <div class="mb-2 last:mb-0">
+                    <p class="text-[10px] font-bold text-red-500 flex items-center gap-1 mb-0.5">
+                        <i data-lucide="store" class="w-3 h-3"></i> ${sp.restaurante_nome || 'Restaurante'}
+                        <span class="ml-auto px-1.5 py-0.5 rounded text-[8px] font-semibold ${statusBg[sp.status]}">${statusLabels[sp.status]}</span>
+                    </p>
+                    ${sp.itens.map(i => `
+                        <p class="text-[10px] text-gray-500 pl-3">
+                            <span class="font-bold">${i.quantidade}x</span> ${i.nome}
+                            ${i.extras && i.extras.length > 0 ?
+                                `<span class="text-red-400 italic font-medium"> (+ ${i.extras.map(e => e.nome).join(', ')})</span>`
+                                : ''
+                            }
+                        </p>
+                    `).join('')}
+                </div>
+            `).join('');
+        }
+        // Fallback para itens flat (legado antigo)
+        return (order.itens || []).map(i => `
+            <p class="text-[10px] text-gray-500">
+                <span class="font-bold">${i.quantidade}x</span> ${i.nome}
+                ${i.extras && i.extras.length > 0 ?
+                    `<span class="text-red-400 italic font-medium"> (+ ${i.extras.map(e => e.nome).join(', ')})</span>`
+                    : ''
+                }
+            </p>
+        `).join('');
+    }
+
+    function getFirstRestaurantId(order) {
+        if (order.sub_pedidos && order.sub_pedidos.length > 0) {
+            return order.sub_pedidos[0].restaurante_id;
+        }
+        return order.restaurante_id;
+    }
+
+    function renderReviewButtons(order) {
+        const subs = order.sub_pedidos || [];
+        if (subs.length > 0) {
+            return subs.filter(sp => sp.status === 'entregue').map(sp => `
+                <button onclick="openReviewModal('${order.id}', '${sp.restaurante_id}', '${(sp.restaurante_nome || 'Restaurante').replace(/'/g, "\\'")}')" class="flex-1 px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-medium transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="star" class="w-4 h-4"></i> Avaliar ${subs.length > 1 ? sp.restaurante_nome : ''}
+                </button>
+            `).join('');
+        }
+        
+        if (order.status === 'entregue') {
+            return `
+                <button onclick="openReviewModal('${order.id}', '${getFirstRestaurantId(order)}', '${(order.restaurante_nome || 'Restaurante').replace(/'/g, "\\'")}')" class="flex-1 px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-medium transition-colors flex items-center justify-center gap-2">
+                    <i data-lucide="star" class="w-4 h-4"></i> Avaliar
+                </button>
+            `;
+        }
+        return '';
+    }
+
     async function loadOrders() {
         if (!Auth.isAuthenticated()) { window.location.href = '/login/'; return; }
         try {
@@ -73,31 +134,23 @@
                     <a href="/pedido/${o.numero_pedido}/acompanhar/" class="flex items-center justify-between block mb-4">
                         <div>
                             <p class="text-sm font-bold text-red-500">${o.numero_pedido}</p>
+                            <p class="text-[10px] text-gray-400 mb-1">${o.restaurante_nome || ''}</p>
                             <div class="mt-1 space-y-0.5">
-                                ${o.itens.map(i => `
-                                    <p class="text-[10px] text-gray-500">
-                                        <span class="font-bold">${i.quantidade}x</span> ${i.nome}
-                                        ${i.extras && i.extras.length > 0 ? 
-                                            `<span class="text-red-400 italic font-medium"> (+ ${i.extras.map(e => e.nome).join(', ')})</span>` 
-                                            : ''
-                                        }
-                                    </p>
-                                `).join('')}
+                                ${renderOrderItems(o)}
                             </div>
-                            <!-- CORREÇÃO: Exibe o total do pedido vindo do snapshot do banco -->
+                            <!-- Total do pedido vindo do snapshot do banco -->
                             <p class="text-xs font-bold text-gray-700 mt-2">Total: ${formatMoney(o.total)}</p>
                             <p class="text-[10px] text-gray-400 mt-1">${new Date(o.criado_em).toLocaleDateString('pt-BR')} às ${new Date(o.criado_em).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
                         </div>
                         <span class="px-3 py-1 rounded-lg text-xs font-semibold ${statusBg[o.status]}">${statusLabels[o.status]}</span>
                     </a>
-                    <div class="flex gap-2 pt-4 border-t border-gray-100">
-                        <button onclick="reorder('${o.restaurante_id}', '${o.restaurante_nome}', ${JSON.stringify(o.itens).replace(/"/g, '&quot;')})" class="flex-1 px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-gray-200">
+                    <div class="flex flex-col gap-2 pt-4 border-t border-gray-100">
+                        <button onclick="reorder(${JSON.stringify(o.sub_pedidos || []).replace(/"/g, '&quot;')}, ${JSON.stringify(o.itens || []).replace(/"/g, '&quot;')}, '${getFirstRestaurantId(o)}', '${(o.restaurante_nome || '').replace(/'/g, "\\'")}')" class="w-full px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-gray-200">
                             <i data-lucide="rotate-cw" class="w-4 h-4"></i> Refazer Pedido
                         </button>
-                        ${o.status === 'entregue' ? `
-                        <button onclick="openReviewModal('${o.id}', '${o.restaurante_id}', '${o.restaurante_nome}')" class="flex-1 px-3 py-2 rounded-xl border border-red-200 text-red-500 hover:bg-red-50 text-xs font-medium transition-colors flex items-center justify-center gap-2">
-                            <i data-lucide="star" class="w-4 h-4"></i> Avaliar
-                        </button>` : ''}
+                        <div class="flex gap-2 flex-wrap w-full">
+                            ${renderReviewButtons(o)}
+                        </div>
                     </div>
                 </div>
             `).join('');
@@ -108,7 +161,7 @@
         }
     }
     
-    // Lógica de Avaliação (Estrelas) e reorder permanecem as mesmas
+    // Lógica de Avaliação (Estrelas)
     document.querySelectorAll('.star-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const rating = parseInt(btn.dataset.rating);
@@ -154,33 +207,50 @@
         finally { btn.textContent = 'Enviar Avaliação'; btn.disabled = false; }
     });
 
-    function reorder(restaurantId, restaurantName, items) {
+    function reorder(subPedidos, itensFallback, fallbackRestId, fallbackRestName) {
         Cart.clear();
-        items.forEach(i => {
-            const extras = i.extras || [];
-            const extrasTotal = extras.reduce((sum, e) => sum + parseFloat(e.preco || 0), 0);
-            const unitPriceFromOrder = parseFloat(i.preco);
-            const precoBaseOriginal = unitPriceFromOrder - extrasTotal;
-
-            const baseProduct = { 
-                id: i.produto_id, 
-                nome: i.nome, 
-                preco: precoBaseOriginal, 
-                imagem_url: i.imagem_url 
-            };
-            
-            Cart.add(baseProduct, restaurantId, restaurantName, extras);
-            
-            const qty = i.quantidade || 1;
-            if (qty > 1) {
-                const extrasKey = extras.map(e => e.nome).sort().join('|');
-                const uniqueId = extrasKey ? `${i.produto_id}-${extrasKey}` : i.produto_id;
-                Cart.updateQuantity(uniqueId, qty);
-            }
-        });
+        
+        if (subPedidos && subPedidos.length > 0) {
+            // Usar sub_pedidos — cada um com seu restaurante
+            subPedidos.forEach(sp => {
+                const restaurantId = sp.restaurante_id;
+                const restaurantName = sp.restaurante_nome || 'Restaurante';
+                (sp.itens || []).forEach(i => {
+                    addItemToCart(i, restaurantId, restaurantName);
+                });
+            });
+        } else if (itensFallback && itensFallback.length > 0) {
+            // Fallback legado: itens flat
+            itensFallback.forEach(i => {
+                addItemToCart(i, fallbackRestId, fallbackRestName);
+            });
+        }
 
         showToast('Itens adicionados ao carrinho!');
         setTimeout(() => { window.location.href = '/carrinho/'; }, 800);
+    }
+
+    function addItemToCart(item, restaurantId, restaurantName) {
+        const extras = item.extras || [];
+        const extrasTotal = extras.reduce((sum, e) => sum + parseFloat(e.preco || 0), 0);
+        const unitPriceFromOrder = parseFloat(item.preco);
+        const precoBaseOriginal = unitPriceFromOrder - extrasTotal;
+
+        const baseProduct = { 
+            id: item.prato_id, 
+            nome: item.nome, 
+            preco: precoBaseOriginal, 
+            imagem_url: item.imagem_url 
+        };
+        
+        Cart.add(baseProduct, restaurantId, restaurantName, extras);
+        
+        const qty = item.quantidade || 1;
+        if (qty > 1) {
+            const extrasKey = extras.map(e => e.nome).sort().join('|');
+            const uniqueId = extrasKey ? `${item.prato_id}-${extrasKey}` : item.prato_id;
+            Cart.updateQuantity(uniqueId, qty);
+        }
     }
 
     loadOrders();

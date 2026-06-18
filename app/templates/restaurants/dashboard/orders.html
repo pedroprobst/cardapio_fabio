@@ -129,22 +129,28 @@
             if (pendingCount > 0) { pcEl.textContent = pendingCount; pcEl.classList.remove('hidden'); }
             else { pcEl.classList.add('hidden'); }
 
-            list.innerHTML = d.results.map(o => `
-                <div class="order-card bg-white border border-gray-100 shadow-card rounded-2xl p-5 fade-in ${o.status === 'pendente' ? 'notification-pulse border border-red-200' : ''}">
+            list.innerHTML = d.results.map(o => {
+                let sub = o.sub_pedidos && o.sub_pedidos.find(sp => sp.restaurante_id === rid);
+                let itens = sub ? sub.itens : (o.itens || []);
+                let status = sub ? sub.status : o.status;
+                let total = sub ? sub.total : o.total;
+
+                return `
+                <div class="order-card bg-white border border-gray-100 shadow-card rounded-2xl p-5 fade-in ${status === 'pendente' ? 'notification-pulse border border-red-200' : ''}">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-3">
                             <span class="text-sm font-bold text-red-500">${o.numero_pedido}</span>
                             <span class="text-xs text-gray-400">${new Date(o.criado_em).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            <span class="px-2.5 py-1 rounded-lg text-xs font-medium ${SC[o.status]}">${SL[o.status]}</span>
+                            <span class="px-2.5 py-1 rounded-lg text-xs font-medium ${SC[status]}">${SL[status]}</span>
                             <button onclick="openOrderDetail('${o.id}')" class="p-1.5 rounded-lg hover:bg-gray-200 transition-colors" title="Detalhes">
                                 <i data-lucide="eye" class="w-4 h-4 text-gray-500"></i>
                             </button>
                         </div>
                     </div>
                     <div class="space-y-1 mb-3">
-                        ${o.itens.slice(0,3).map(i => `
+                        ${itens.slice(0,3).map(i => `
                             <div class="flex justify-between text-sm">
                                 <div class="flex flex-col">
                                     <span class="text-gray-600">${i.quantidade}x ${i.nome}</span>
@@ -154,20 +160,20 @@
                                 <span class="text-gray-400">${formatMoney(i.subtotal)}</span>
                             </div>
                         `).join('')}
-                        ${o.itens.length > 3 ? `<p class="text-xs text-gray-400">+ ${o.itens.length-3} ite${o.itens.length-3 > 1 ? 'ns' : 'm'}</p>` : ''}
+                        ${itens.length > 3 ? `<p class="text-xs text-gray-400">+ ${itens.length-3} ite${itens.length-3 > 1 ? 'ns' : 'm'}</p>` : ''}
                     </div>
                     <div class="flex items-center justify-between border-t border-gray-200/50 pt-3">
                         <div class="flex items-center gap-3">
-                            <span class="font-semibold text-gray-700">${formatMoney(o.total)}</span>
+                            <span class="font-semibold text-gray-700">${formatMoney(total)}</span>
                             <span class="text-xs text-gray-400">${o.metodo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'}</span>
                         </div>
                         <div class="flex items-center gap-2">
-                            ${NS[o.status] ? `<button onclick="advanceStatus('${o.id}','${NS[o.status]}')" class="btn-primary px-4 py-2 rounded-xl text-xs text-white font-medium">${NL[NS[o.status]]}</button>` : ''}
-                            ${['pendente','confirmado','preparando','pronto'].includes(o.status) ? `<button onclick="openCancelModal('${o.id}')" class="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 text-xs hover:bg-red-500/20 transition-colors">Cancelar</button>` : ''}
+                            ${NS[status] ? `<button onclick="advanceStatus('${o.id}','${NS[status]}')" class="btn-primary px-4 py-2 rounded-xl text-xs text-white font-medium">${NL[NS[status]]}</button>` : ''}
+                            ${['pendente','confirmado','preparando','pronto'].includes(status) ? `<button onclick="openCancelModal('${o.id}')" class="px-3 py-2 rounded-xl bg-red-500/10 text-red-400 text-xs hover:bg-red-500/20 transition-colors">Cancelar</button>` : ''}
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `}).join('');
             lucide.createIcons();
         } catch (e) {
             console.error('Error loading orders:', e);
@@ -184,18 +190,25 @@
 
     async function openOrderDetail(oid) {
         try {
+            const rid = DashboardNav.getRestaurantId();
             const res = await API.get(`/api/orders/${oid}/`);
             const o = await res.json();
+            
+            let sub = o.sub_pedidos && o.sub_pedidos.find(sp => sp.restaurante_id === rid);
+            let itens = sub ? sub.itens : (o.itens || []);
+            let status = sub ? sub.status : o.status;
+            let total = sub ? sub.total : o.total;
+
             document.getElementById('modal-order-number').textContent = o.numero_pedido;
             document.getElementById('modal-content').innerHTML = `
                 <div class="space-y-4">
                     <div class="flex items-center gap-2">
-                        <span class="px-2.5 py-1 rounded-lg text-xs font-medium ${SC[o.status]}">${SL[o.status]}</span>
+                        <span class="px-2.5 py-1 rounded-lg text-xs font-medium ${SC[status]}">${SL[status]}</span>
                         <span class="text-xs text-gray-400">${new Date(o.criado_em).toLocaleString('pt-BR')}</span>
                     </div>
                     <div>
                         <h4 class="text-xs text-gray-400 font-medium mb-2 uppercase tracking-wider">Itens do Pedido</h4>
-                        ${o.itens.map(i => `
+                        ${itens.map(i => `
                             <div class="flex items-center gap-3 py-2 border-b border-gray-200">
                                 ${i.imagem_url ? `<img src="${i.imagem_url}" class="w-10 h-10 rounded-lg object-cover" alt="">` : '<div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center"><i data-lucide="package" class="w-4 h-4 text-gray-400"></i></div>'}
                                 <div class="flex-1">
@@ -209,7 +222,7 @@
                                 <span class="text-sm font-medium text-gray-600">${formatMoney(i.subtotal)}</span>
                             </div>
                         `).join('')}
-                        <div class="flex justify-between pt-3 mt-1"><span class="font-semibold text-gray-700">Total</span><span class="font-bold text-red-500 text-lg">${formatMoney(o.total)}</span></div>
+                        <div class="flex justify-between pt-3 mt-1"><span class="font-semibold text-gray-700">Total</span><span class="font-bold text-red-500 text-lg">${formatMoney(total)}</span></div>
                     </div>
                     <!-- Endereço e Observações... -->
                     ${o.endereco_entrega ? `

@@ -65,11 +65,22 @@ class RepositorioPedido(BaseRepository[Pedido]):
         """Salva um pedido no banco."""
         pedido.save()
 
+    def _match_restaurante(self, rid: ObjectId) -> dict:
+        """Retorna o filtro $or para buscar pedidos que pertençam a um restaurante,
+        considerando tanto o formato legado (restaurante_id) quanto sub_pedidos."""
+        return {
+            '$or': [
+                {'restaurante_id': rid},
+                {'sub_pedidos.restaurante_id': rid}
+            ]
+        }
+
     def obter_estatisticas_dashboard(self, restaurante_id: str) -> dict:
         """
         Obtém estatísticas abrangentes do dashboard usando uma única aggregation.
 
-        Substitui a abordagem anterior de múltiplas iterações em Python.
+        Considera pedidos em ambos os formatos: legado (restaurante_id) e
+        multi-restaurante (sub_pedidos.restaurante_id).
         """
         rid = ObjectId(restaurante_id)
         agora = datetime.now(timezone.utc)
@@ -77,47 +88,87 @@ class RepositorioPedido(BaseRepository[Pedido]):
         inicio_semana = inicio_hoje - timedelta(days=agora.weekday())
         inicio_mes = inicio_hoje.replace(day=1)
 
+        # Pipeline que normaliza ambos os formatos para uma lista unificada de itens/total
+        # Estágio 1: Filtrar documentos que pertencem ao restaurante
+        # Estágio 2: Extrair o total e itens relevantes usando $addFields
         pipeline = [
-            {'$match': {'restaurante_id': rid}},
+            # Filtrar pedidos do restaurante (legado + sub_pedidos)
+            {'$match': self._match_restaurante(rid)},
+            # Normalizar: extrair total e itens do restaurante específico
+            {'$addFields': {
+                '_sub_match': {
+                    '$filter': {
+                        'input': {'$ifNull': ['$sub_pedidos', []]},
+                        'as': 'sp',
+                        'cond': {'$eq': ['$$sp.restaurante_id', rid]}
+                    }
+                }
+            }},
+            {'$addFields': {
+                # Total do restaurante: do sub-pedido se existe, senão do pedido
+                '_total_restaurante': {
+                    '$cond': {
+                        'if': {'$gt': [{'$size': '$_sub_match'}, 0]},
+                        'then': {'$arrayElemAt': ['$_sub_match.total', 0]},
+                        'else': '$total'
+                    }
+                },
+                # Status do restaurante: do sub-pedido se existe, senão do pedido
+                '_status_restaurante': {
+                    '$cond': {
+                        'if': {'$gt': [{'$size': '$_sub_match'}, 0]},
+                        'then': {'$arrayElemAt': ['$_sub_match.status', 0]},
+                        'else': '$status'
+                    }
+                },
+                # Itens do restaurante: do sub-pedido se existe, senão do pedido
+                '_itens_restaurante': {
+                    '$cond': {
+                        'if': {'$gt': [{'$size': '$_sub_match'}, 0]},
+                        'then': {'$arrayElemAt': ['$_sub_match.itens', 0]},
+                        'else': '$itens'
+                    }
+                },
+            }},
             {'$facet': {
                 # Estatísticas de hoje
                 'hoje': [
-                    {'$match': {'criado_em': {'$gte': inicio_hoje}, 'status': {'$ne': 'cancelado'}}},
+                    {'$match': {'criado_em': {'$gte': inicio_hoje}, '_status_restaurante': {'$ne': 'cancelado'}}},
                     {'$group': {
                         '_id': None,
-                        'receita': {'$sum': {'$toDouble': '$total'}},
+                        'receita': {'$sum': {'$toDouble': '$_total_restaurante'}},
                         'contagem': {'$sum': 1},
                     }},
                 ],
                 # Estatísticas da semana
                 'semana': [
-                    {'$match': {'criado_em': {'$gte': inicio_semana}, 'status': {'$ne': 'cancelado'}}},
+                    {'$match': {'criado_em': {'$gte': inicio_semana}, '_status_restaurante': {'$ne': 'cancelado'}}},
                     {'$group': {
                         '_id': None,
-                        'receita': {'$sum': {'$toDouble': '$total'}},
+                        'receita': {'$sum': {'$toDouble': '$_total_restaurante'}},
                         'contagem': {'$sum': 1},
                     }},
                 ],
                 # Estatísticas do mês
                 'mes': [
-                    {'$match': {'criado_em': {'$gte': inicio_mes}, 'status': {'$ne': 'cancelado'}}},
+                    {'$match': {'criado_em': {'$gte': inicio_mes}, '_status_restaurante': {'$ne': 'cancelado'}}},
                     {'$group': {
                         '_id': None,
-                        'receita': {'$sum': {'$toDouble': '$total'}},
+                        'receita': {'$sum': {'$toDouble': '$_total_restaurante'}},
                         'contagem': {'$sum': 1},
                     }},
                 ],
                 # Contagem por status
                 'contagem_status': [
-                    {'$group': {'_id': '$status', 'contagem': {'$sum': 1}}},
+                    {'$group': {'_id': '$_status_restaurante', 'contagem': {'$sum': 1}}},
                 ],
                 # Produtos mais vendidos
                 'produtos_mais_vendidos': [
-                    {'$match': {'status': {'$ne': 'cancelado'}}},
-                    {'$unwind': '$itens'},
+                    {'$match': {'_status_restaurante': {'$ne': 'cancelado'}}},
+                    {'$unwind': '$_itens_restaurante'},
                     {'$group': {
-                        '_id': '$itens.nome',
-                        'quantidade': {'$sum': '$itens.quantidade'},
+                        '_id': '$_itens_restaurante.nome',
+                        'quantidade': {'$sum': '$_itens_restaurante.quantidade'},
                     }},
                     {'$sort': {'quantidade': -1}},
                     {'$limit': 5},
@@ -127,11 +178,11 @@ class RepositorioPedido(BaseRepository[Pedido]):
                 'receita_diaria': [
                     {'$match': {
                         'criado_em': {'$gte': inicio_hoje - timedelta(days=6)},
-                        'status': {'$ne': 'cancelado'},
+                        '_status_restaurante': {'$ne': 'cancelado'},
                     }},
                     {'$group': {
                         '_id': {'$dateToString': {'format': '%Y-%m-%d', 'date': '$criado_em'}},
-                        'receita': {'$sum': {'$toDouble': '$total'}},
+                        'receita': {'$sum': {'$toDouble': '$_total_restaurante'}},
                         'pedidos': {'$sum': 1},
                     }},
                     {'$sort': {'_id': 1}},
@@ -140,6 +191,13 @@ class RepositorioPedido(BaseRepository[Pedido]):
                 'pedidos_recentes': [
                     {'$sort': {'criado_em': -1}},
                     {'$limit': 5},
+                    {'$project': {
+                        '_id': 1,
+                        'numero_pedido': 1,
+                        'status': '$_status_restaurante',
+                        'total': '$_total_restaurante',
+                        'criado_em': 1,
+                    }},
                 ],
                 # Contagem total
                 'contagem_total': [
@@ -214,40 +272,80 @@ class RepositorioPedido(BaseRepository[Pedido]):
         data_fim: str | None = None,
     ) -> dict:
         """Obtém histórico paginado de pedidos com filtros e estatísticas resumidas."""
-        filtros: dict = {'restaurante_id': ObjectId(restaurante_id)}
+        rid = ObjectId(restaurante_id)
+
+        # Usar $or para buscar em ambos os formatos
+        raw_filters: dict = self._match_restaurante(rid)
 
         if filtro_status:
-            filtros['status'] = filtro_status
+            # Adicionar filtro de status em ambos os caminhos
+            raw_filters = {
+                '$or': [
+                    {'restaurante_id': rid, 'status': filtro_status},
+                    {'sub_pedidos': {'$elemMatch': {'restaurante_id': rid, 'status': filtro_status}}}
+                ]
+            }
         if data_inicio:
-            filtros['criado_em__gte'] = datetime.fromisoformat(data_inicio)
+            raw_filters['criado_em'] = raw_filters.get('criado_em', {})
+            raw_filters['criado_em']['$gte'] = datetime.fromisoformat(data_inicio)
         if data_fim:
-            dt_fim = datetime.fromisoformat(data_fim) + timedelta(days=1)
-            filtros['criado_em__lt'] = dt_fim
+            raw_filters.setdefault('criado_em', {})['$lt'] = datetime.fromisoformat(data_fim) + timedelta(days=1)
 
-        paginado = self.paginate(page=pagina, page_size=tamanho_pagina, **filtros)
+        paginado = self.paginate(page=pagina, page_size=tamanho_pagina, __raw__=raw_filters)
 
         # Resumo via aggregation
-        match_stage: dict = {'restaurante_id': rid} if (rid := ObjectId(restaurante_id)) else {}
+        match_stage: dict = self._match_restaurante(rid)
         if filtro_status:
-            match_stage['status'] = filtro_status
+            match_stage = {
+                '$or': [
+                    {'restaurante_id': rid, 'status': filtro_status},
+                    {'sub_pedidos': {'$elemMatch': {'restaurante_id': rid, 'status': filtro_status}}}
+                ]
+            }
         if data_inicio:
             match_stage.setdefault('criado_em', {})['$gte'] = datetime.fromisoformat(data_inicio)
         if data_fim:
             match_stage.setdefault('criado_em', {})['$lt'] = datetime.fromisoformat(data_fim) + timedelta(days=1)
 
+        # Normalizar o total/status para o restaurante específico
         pipeline_resumo = [
             {'$match': match_stage},
+            {'$addFields': {
+                '_sub_match': {
+                    '$filter': {
+                        'input': {'$ifNull': ['$sub_pedidos', []]},
+                        'as': 'sp',
+                        'cond': {'$eq': ['$$sp.restaurante_id', rid]}
+                    }
+                }
+            }},
+            {'$addFields': {
+                '_total_restaurante': {
+                    '$cond': {
+                        'if': {'$gt': [{'$size': '$_sub_match'}, 0]},
+                        'then': {'$arrayElemAt': ['$_sub_match.total', 0]},
+                        'else': '$total'
+                    }
+                },
+                '_status_restaurante': {
+                    '$cond': {
+                        'if': {'$gt': [{'$size': '$_sub_match'}, 0]},
+                        'then': {'$arrayElemAt': ['$_sub_match.status', 0]},
+                        'else': '$status'
+                    }
+                },
+            }},
             {'$facet': {
                 'receita': [
-                    {'$match': {'status': {'$ne': 'cancelado'}}},
-                    {'$group': {'_id': None, 'total': {'$sum': {'$toDouble': '$total'}}}},
+                    {'$match': {'_status_restaurante': {'$ne': 'cancelado'}}},
+                    {'$group': {'_id': None, 'total': {'$sum': {'$toDouble': '$_total_restaurante'}}}},
                 ],
                 'entregues': [
-                    {'$match': {'status': 'entregue'}},
+                    {'$match': {'_status_restaurante': 'entregue'}},
                     {'$count': 'total'},
                 ],
                 'cancelados': [
-                    {'$match': {'status': 'cancelado'}},
+                    {'$match': {'_status_restaurante': 'cancelado'}},
                     {'$count': 'total'},
                 ],
             }},
