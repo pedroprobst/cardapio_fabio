@@ -78,7 +78,12 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
 
         if search:
             pipeline.append({'$match': {
-                'pratos.nome': {'$regex': search, '$options': 'i'},
+                '$or': [
+                    {'pratos.nome': {'$regex': search, '$options': 'i'}},
+                    {'pratos.descricao': {'$regex': search, '$options': 'i'}},
+                    {'pratos.ingredientes_principais': {'$regex': search, '$options': 'i'}},
+                    {'pratos.adicionais.nome': {'$regex': search, '$options': 'i'}},
+                ]
             }})
 
         # Conta total de itens antes da paginação
@@ -111,7 +116,7 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
                 },
                 'adicionais': {
                     '$map': {
-                        'input': {'$ifNull': ['$pratos.ingredientes', []]},
+                        'input': {'$ifNull': ['$pratos.adicionais', []]},
                         'as': 'ing',
                         'in': {
                             'nome': '$$ing.nome',
