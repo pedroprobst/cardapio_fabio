@@ -29,30 +29,33 @@ graph TD
 
     %% Agrupamento Backend
     subgraph Backend [Camada API Server-Side Django]
-        V[API ViewSets & Routers]
-        S[Business Services Logic]
-        W[Channel Real-time Consumers]
-        M[Security Middlewares]
+        Auth[App: Authentication API]
+        Rest[App: Restaurants & Reviews API]
+        Ord[App: Orders & WebSockets API]
+        Core[App: Core Middlewares]
     end
 
     %% Agrupamento Dados
     subgraph Data [Camada de Infraestrutura e Dados]
         DB[(MongoDB Atlas Cluster)]
-        S3[(AWS S3 Edge Storage)]
+        Storage[(Armazenamento Local)]
     end
 
     %% Conexões
-    UI -->|HTTP Requests| V
-    CM -->|Sync LocalStorage| V
-    AC -->|JWT Headers| V
-    WC <-->|WSS Stream| W
+    UI -->|HTTP Requests| Core
+    CM -->|Sync LocalStorage| Rest
+    AC -->|JWT Headers| Auth
+    WC <-->|WSS Stream| Ord
 
-    V --> M
-    W --> M
-    M --> S
+    Core --> Auth
+    Core --> Rest
+    Core --> Ord
 
-    S --> DB
-    S --> S3
+    Auth --> DB
+    Rest --> DB
+    Ord --> DB
+
+    Core --> Storage
 ```
 
 ---
@@ -73,16 +76,15 @@ A camada de exibição adota a filosofia *Server-Side Rendering* (SSR) mesclada 
 
 ## 8.3 Arquitetura de Serviços (Back-end)
 
-A camada lógica encapsula todo o domínio e processos transacionais através da filosofia do Padrão "Repository e Services".
+A camada lógica encapsula todo o domínio e processos transacionais através da filosofia do Padrão "Repository e Services", estruturada em "Apps" do Django.
+A comunicação com a camada de dados não utiliza SQL ou ORM tradicional. O mapeamento é feito estritamente através da biblioteca **MongoEngine**, atuando como ODM (Object-Document Mapper). Isso permite que as rotas e serviços manipulem classes em Python puro, enquanto o MongoEngine orquestra silenciosamente a conversão para BSON, validando os complexos relacionamentos de documentos embutidos (ex: pratos, avaliações, cupons e sub-pedidos).
 
-| Classe Lógica | Responsabilidade de Domínio |
+| Classe Lógica (App) | Responsabilidade de Domínio |
 | --- | --- |
-| **Authentication Service** | Execução de Hashing, Verificação de Oauth Callback e construção dos claims do JWT. |
-| **Restaurant & Catalog Service** | Resolução de Regras de Negócio (Status de Tenants) e gerência do inventário base (Categorização). |
-| **Order Transactional Service** | Lógica central da aplicação. Assina os congelamentos financeiros, processa regras de fluxo de Checkout e orquestra WebSockets. |
-| **Storage Gateway Service** | Trâmite blindado de uploads. Processa Sanitização MIME Type e *handshakes* com nuvens provedoras de mídia (AWS/Cloudinary). |
-| **CORS & JWT Middlewares** | Escudo de borda contra acessos indesejados, protegendo a topologia por injeção e revogação de chaves ativas nas requisições. |
-| **Real-time Handlers (Consumers)** | Despachantes assíncronos que mantêm "quartos" de audiência isolados permitindo broadcasting focado aos tenants envolvidos na transação. |
+| **Authentication App** | Execução de Hashing, Verificação de Oauth Callback e construção dos claims do JWT. |
+| **Restaurants & Reviews App** | Resolução de Regras de Negócio (Status de Tenants), gerência do inventário base (Categorização, Adicionais, Cupons) e processamento das Avaliações Embutidas. |
+| **Orders App** | Lógica central da aplicação. Assina os congelamentos financeiros, processa a divisão logística de Sub-pedidos multi-restaurante e orquestra a comunicação em tempo real. |
+| **Core & Middlewares App** | Escudo de borda contra acessos indesejados, protegendo a topologia por injeção e revogação de chaves ativas nas requisições, bem como trâmite de integrações de armazenamento local. |
 
 ---
 
@@ -105,7 +107,7 @@ flowchart TD
     %% Provedores Managed DB/Storage
     subgraph External [Provedores Externos]
         Mongo["MongoDB Atlas (DBaaS)\nCluster Nativo Distribuído"]
-        CDN["Edge Content Delivery (AWS)"]
+        CDN["Servidor de Arquivos Estáticos"]
     end
 
     %% Trafego

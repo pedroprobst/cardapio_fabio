@@ -113,7 +113,7 @@ classDiagram
 **Fluxo Principal:**
 1. O cliente visita a interface pública de descoberta (Home).
 2. O sistema constrói e despacha a query com otimização no MongoDB, buscando tenants ativos.
-3. A interface apresenta a grid de estabelecimentos utilizando técnica de Lazy Loading para os assets (S3).
+3. A interface apresenta a grid de estabelecimentos utilizando técnica de Lazy Loading para os assets.
 4. O cliente utiliza o motor de busca ou filtros semânticos para refinar a apresentação.
 
 ---
@@ -147,11 +147,11 @@ classDiagram
 2. O módulo de Carrinho injeta o item com a quantidade especificada.
 3. Elementos reativos da interface (Badges e Subtotal) são recalculados em tempo de execução via JavaScript.
 
-**Fluxo Alternativo (Conflito de Tenant):**
-1. Caso o item selecionado pertença a um Tenant distinto do já presente no carrinho.
-2. A interface bloqueia a inserção direta e exige uma confirmação destrutiva.
-3. Confirmação positiva: a coleção do carrinho é truncada e o novo item adicionado.
-4. Negativa: Operação abortada silenciosamente.
+**Fluxo Alternativo (Inclusão de Adicionais):**
+1. Caso o produto selecionado possua lista de adicionais/extras configurada.
+2. A interface exibe as opções de adicionais com seus respectivos preços.
+3. O cliente seleciona os extras desejados.
+4. O módulo de Carrinho injeta o item juntamente com a composição dos extras escolhidos, ajustando dinamicamente o subtotal final.
 
 ---
 
@@ -164,12 +164,12 @@ classDiagram
 | **Pós-condição** | Registro transacional do Pedido persistido e propagado via WebSocket. |
 
 **Fluxo Principal:**
-1. Acesso à interface de revisão de carrinho.
-2. O cliente insere instruções operacionais (observações) e seleciona a logística (Delivery/Retirada).
+1. Acesso à interface de revisão de carrinho (agrupamento visual por restaurante gerando `sub_pedidos`).
+2. O cliente insere instruções operacionais (observações) e seleciona a logística (Delivery/Retirada), forma de pagamento e aplica cupons de desconto aplicáveis a cada estabelecimento.
 3. Acionamento do botão "Finalizar Pedido".
-4. O backend realiza processamento atômico: valida premissas, congela preços (snapshot) e persiste o documento no banco de dados com a flag `pending`.
-5. O sistema publica no Channel Layer a criação do pedido, emitindo sinalização WebSocket diretamente para a interface do restaurante.
-6. A interface final exibe recibo transacional e código de rastreamento da ordem.
+4. O backend realiza processamento atômico: valida premissas, congela preços de itens e adicionais (snapshot) e persiste o documento principal contendo os sub-pedidos no banco de dados.
+5. O sistema publica no Channel Layer a criação do pedido, emitindo sinalização WebSocket independentemente para a interface de cada restaurante.
+6. A interface final exibe recibo transacional e código de rastreamento com a divisão por restaurante.
 
 ---
 
@@ -200,7 +200,7 @@ classDiagram
 **Fluxo Principal:**
 1. O gestor navega até as ferramentas de backoffice.
 2. O usuário preenche ou retifica formulários complexos que modelam a operação do seu restaurante.
-3. As requisições disparam *upload* da imagem de *cover* contra o AWS S3/Cloudinary de forma serializada.
+3. As requisições disparam *upload* da imagem de *cover* de forma local e serializada.
 4. O sistema avaliza todas as constraints e atualiza os metadados do documento no MongoDB.
 
 ---
@@ -215,7 +215,7 @@ classDiagram
 
 **Fluxo Principal:**
 1. O gestor interage com o painel de produtos do tenant.
-2. Ações de Criação, Leitura, Atualização ou Exclusão (Soft Delete / Disponibilidade) são aplicadas a itens da coleção.
+2. Ações de Criação, Leitura, Atualização ou Exclusão (Soft Delete / Disponibilidade) são aplicadas a itens da coleção, incluindo a gestão de listas de Adicionais/Extras com precificação específica.
 3. O serviço de retaguarda sanitiza os descritivos, resolve o armazenamento das imagens individuais e reconcilia a base.
 
 ---

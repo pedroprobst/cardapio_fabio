@@ -77,14 +77,14 @@ graph TD
     SRV["Camada de Serviço (Service Layer)"]
     REP["Repositório / ODM"]
     DB[("MongoDB Atlas")]
-    S3[("AWS S3 / Armazenamento")]
+    Storage[("Armazenamento Local")]
 
     C <-->|HTTPS| API
     C <-->|WSS| WS
     API --> SRV
     WS --> SRV
     SRV --> REP
-    SRV --> S3
+    SRV --> Storage
     REP <--> DB
 ```
 
@@ -146,7 +146,6 @@ O projeto foi estruturado para ser executado localmente de forma simples, sem Do
 | `DEBUG` | Ativar/Desativar modo de depuração | `True` |
 | `ALLOWED_HOSTS` | Hostnames permitidos para o servidor | `localhost, 127.0.0.1` |
 | `MONGODB_URI` | String de Conexão do MongoDB | `mongodb://localhost:27017/cardapio` |
-| `AWS_ACCESS_KEY` | Credenciais de armazenamento S3 | - |
 
 ---
 

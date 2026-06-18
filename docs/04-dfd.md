@@ -20,7 +20,7 @@ flowchart TD
     %% Agentes Externos
     C["Cliente (Consumidor)"]
     G["Gestor (Restaurante)"]
-    S3["AWS S3 (Object Storage)"]
+    Storage["Armazenamento Local"]
 
     %% Sistema Central
     Sys(("Sistema SaaS\nCardápio Online"))
@@ -38,8 +38,8 @@ flowchart TD
     Sys -- "Dashboard, Listagem de Pedidos" --> G
 
     %% Fluxos - Infraestrutura
-    Sys -- "Imagens WebP/JPEG" --> S3
-    S3 -- "URLs Resolvidas (CDN)" --> Sys
+    Sys -- "Imagens WebP/JPEG" --> Storage
+    Storage -- "URLs Resolvidas" --> Sys
 
 ```
 
@@ -49,7 +49,7 @@ flowchart TD
 | --- | --- | --- |
 | **Cliente** | Usuário Humano | Consome endpoints públicos, envia solicitações de autenticação e processa intenções de compra transacionais. |
 | **Gestor do Restaurante** | Usuário Humano | Manipula a base de metadados dos tenants e orquestra transições logísticas dos pedidos. |
-| **AWS S3 / Storage** | Serviço Cloud Expresso | Provedor passivo que recebe blobs binários e expõe URLs de *Edge Caching*. |
+| **Armazenamento Local** | Serviço de Arquivos | Recebe blobs binários e expõe URLs de acesso. |
 
 ---
 
@@ -62,7 +62,7 @@ flowchart TD
     %% Entidades Externas
     C["Cliente"]
     G["Gestor do Restaurante"]
-    S3["AWS S3"]
+    Storage["Armazenamento Local"]
 
     %% Processos (Domínios de Serviço)
     P1(("1.0\nAuth & JWT"))
@@ -99,10 +99,10 @@ flowchart TD
     P6 <--> D3
 
     %% Interações de Infraestrutura
-    P2 -- "F11: Blob Upload" --> S3
-    S3 -- "F12: Absolute URL" --> P2
-    P3 -- "F13: Blob Upload" --> S3
-    S3 -- "F14: Absolute URL" --> P3
+    P2 -- "F11: File Save" --> Storage
+    Storage -- "F12: Absolute URL" --> P2
+    P3 -- "F13: File Save" --> Storage
+    Storage -- "F14: Absolute URL" --> P3
 
 ```
 
@@ -111,16 +111,16 @@ flowchart TD
 | Processo Interno | Domínio | Escopo e Responsabilidade Principal |
 | --- | --- | --- |
 | **1.0 Auth & JWT** | Autenticação | Gerencia a criação do perfil, delegação para Google OAuth, *hashing* seguro (bcrypt) e emissão temporal do JWT. |
-| **2.0 Tenant Management** | Administrativo | Fornece os *endpoints* e *services* para a curadoria técnica dos restaurantes, incluindo *upload* do S3 de logos e banners. |
+| **2.0 Tenant Management** | Administrativo | Fornece os *endpoints* e *services* para a curadoria técnica dos restaurantes, incluindo upload de logos e banners. |
 | **3.0 Catalog Service** | Inventário | Mantém a sanidade de dados dos produtos (Embedding no *Mongo*), categorização e formatação financeira. |
 | **4.0 Discovery Engine** | Consulta | Motor de *read-only* que varre a coleção otimizada de restaurantes com paginação e processa filtros de pesquisa. |
-| **5.0 Order Controller** | Checkout | Recebe o *Payload* de compra, executa snapshot das matrizes de custo financeiro e grava no Banco de Dados. |
-| **6.0 Fulfillment Service** | Operacional | Controla as transições da máquina de estado do pedido, publicando o histórico contábil e orquestrando o WebSocket. |
+| **5.0 Order Controller** | Checkout | Recebe o *Payload* de compra multi-restaurante, subdivide em Sub-Pedidos por tenant, executa snapshot financeiro (incluindo adicionais e cupons) e grava no Banco de Dados. |
+| **6.0 Fulfillment Service** | Operacional | Controla as transições da máquina de estado de cada Sub-Pedido independentemente, publicando o histórico contábil e orquestrando notificações via WebSocket. |
 
 ### Detalhamento dos Data Stores (NoSQL)
 
 | Instância | Ref. MongoDB | Arquitetura |
 | --- | --- | --- |
 | **D1** | `users` | Coleção central de identidades com índices únicos para `email` e *sparse index* para `google_id`. |
-| **D2** | `restaurants` | Coleção densa focada em leituras, com produtos alocados via estratégia *Embedded Document Pattern*. |
-| **D3** | `orders` | Coleção transacional auditável. Possui registros fixos (sem relação em cascata para produtos após o processamento da compra). |
+| **D2** | `restaurants` | Coleção densa focada em leituras, com produtos, cupons, contatos e avaliações alocados via estratégia *Embedded Document Pattern*. |
+| **D3** | `orders` | Coleção transacional auditável. Armazena o pedido e sua subdivisão em arrays de `sub_pedidos` (cada um roteado para um restaurante específico, sem relações em cascata após o congelamento). |

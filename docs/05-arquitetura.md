@@ -30,8 +30,8 @@ O sistema baseia-se em um modelo estrutural do tipo "Monolito Modular". Embora c
 | **API Interface Layer** | Django REST Framework (DRF) | 3.15+ | Abstração sólida para rotas estritas, classes ViewSets, *throttling* nativo e suporte serialização relacional/não-relacional. |
 | **Infraestrutura Real-time** | Django Channels | 4.x | Integração nativa de WebSocket compatível com as sessões ativas do protocolo HTTP tradicional do framework. |
 | **Persistence (Database)** | MongoDB Atlas | 7.x | Capacidade de absorção elástica de tráfego (Schema-less), clusterização nativa e performance de leitura via *Embedding*. |
-| **Object Data Mapper** | MongoEngine / Djongo | — | Motor de mapeamento abstraindo os comandos nativos de coleção do Mongo em instâncias de classes limpas. |
-| **Object Storage Cloud** | Amazon S3 | — | Persistência distribuída imutável de ativos estáticos de alta volumetria (imagens de lojas e produtos). |
+| **Object Data Mapper** | MongoEngine | — | Motor de mapeamento abstraindo os comandos nativos de coleção do Mongo em instâncias de classes e documentos embutidos (Embedded Documents). |
+| **Storage de Arquivos** | Armazenamento Local | — | Persistência de ativos estáticos (imagens de lojas e produtos). |
 | **Interface Visual (UI)** | Tailwind CSS | 3.x | Implementação de folha de estilos *Utility-First*, reduzindo inflação visual e gerando consistência de componentização. |
 | **Engine Criptográfica** | PyJWT | 2.x | Resolução de sessões através de payload assinado digitalmente, reduzindo carga (Stateless) em bancos de dados relacionais de sessão. |
 
@@ -46,7 +46,7 @@ graph TD
     %% Nodos
     PR["PRESENTATION LAYER\n(Templates Jinja2, Tailwind, JS Modules)"]
     IN["API INTERFACE LAYER\n(DRF ViewSets, Channels Consumers)"]
-    AP["APPLICATION / SERVICE LAYER\n(Regras de Negócio, Autenticação, S3 Service)"]
+    AP["APPLICATION / SERVICE LAYER\n(Regras de Negócio, Autenticação, Storage Service)"]
     DB["INFRASTRUCTURE & REPOSITORY\n(MongoEngine Documents, ODM Query Builders)"]
 
     %% Relacionamentos
@@ -65,7 +65,7 @@ cardapio-online/
 │   ├── settings/
 │   │   ├── base.py                 # Core configurations agnósticas a ambiente
 │   │   ├── development.py          # Environment settings (Debug=True, SQLite fallback)
-│   │   └── production.py           # Segredos produtivos (Debug=False, S3 Bucket)
+│   │   └── production.py           # Segredos produtivos (Debug=False)
 │   ├── urls.py                     # Root routing mapping
 │   └── wsgi.py / asgi.py           # Entrypoints de runtime HTTP e WebSocket
 ├── apps/                           # Módulos encapsulados da arquitetura lógica
@@ -79,7 +79,8 @@ cardapio-online/
 │   │   ├── permissions.py          # RBAC (Role-Based Access Control)
 │   │   └── exceptions.py           # Hierarquia global de falhas transacionais
 │   ├── orders/                     # Lógica transacional e WebSocket (consumers.py)
-│   └── restaurants/                # Tenancy model, produtos e menus
+│   ├── restaurants/                # Tenancy model, produtos, adicionais, cupons e horários
+│   └── reviews/                    # Gestão de avaliações (Documents embutidos nos restaurantes)
 ├── static/                         # Assets processados de client-side (CSS, Vanilla JS)
 ├── templates/                      # Views processadas via Server Side Rendering (SSR)
 ├── docs/                           # Documentação central do ecossistema

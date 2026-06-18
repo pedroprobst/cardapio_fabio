@@ -38,7 +38,7 @@ Este documento cataloga os requisitos técnicos, operacionais e de negócio que 
 | --- | --- |
 | **Identificador** | RF03 |
 | **Descrição** | Usuários com a role `owner` devem ter a capacidade de provisionar e gerenciar metadados de seus estabelecimentos (nome da marca, descrição, dados de contato, horário de operação e identidade visual). |
-| **Regras de Negócio** | A identidade visual (imagem de capa) é mandatória e deve ser hospedada em Object Storage (S3). Um restaurante é provisionado com status padrão de `inactive` até a sua aprovação final. |
+| **Regras de Negócio** | A identidade visual (imagem de capa) é mandatória e deve ser hospedada no armazenamento local. Um restaurante é provisionado com status padrão de `inactive` até a sua aprovação final. |
 | **Criticidade** | Máxima |
 
 ### RF04 — Gestão de Catálogo e Produtos
@@ -47,7 +47,7 @@ Este documento cataloga os requisitos técnicos, operacionais e de negócio que 
 | --- | --- |
 | **Identificador** | RF04 |
 | **Descrição** | A plataforma deve permitir o Cadastro (CRUD) de produtos vinculados a um tenant específico, suportando metadados de vendas e imagens associadas. |
-| **Regras de Negócio** | Produtos devem ser categorizados rigidamente via enumerações (`appetizer`, `main`, `dessert`, `drink`, `combo`). O atributo de precificação não pode ser negativo ou zero. Imagens de produto têm restrições de MIME type (jpg/png/webp) e tamanho máximo de 5MB. |
+| **Regras de Negócio** | Produtos devem ser categorizados rigidamente via enumerações (`appetizer`, `main`, `dessert`, `drink`, `combo`). O atributo de precificação não pode ser negativo ou zero. Imagens de produto têm restrições de MIME type (jpg/png/webp) e tamanho máximo de 5MB. Os produtos podem conter listas de adicionais/extras customizáveis com precificação própria. |
 | **Criticidade** | Máxima |
 
 ### RF05 — Visualização e Descoberta de Cardápios
@@ -64,8 +64,8 @@ Este documento cataloga os requisitos técnicos, operacionais e de negócio que 
 | Propriedade | Especificação |
 | --- | --- |
 | **Identificador** | RF06 |
-| **Descrição** | Usuários com sessão ativa podem compor ordens de serviço mediante adição e alteração de produtos no carrinho de compras. |
-| **Regras de Negócio** | Persistência híbrida do estado (localStorage client-side com sincronização remota). Restrição estrita de contexto: um carrinho não pode conter produtos oriundos de tenants diferentes de forma simultânea. Quantidade limitante operacional por item: 99 unidades. |
+| **Descrição** | Usuários com sessão ativa podem compor ordens de serviço mediante adição e alteração de produtos no carrinho de compras, podendo incluir itens de diferentes restaurantes simultaneamente (Carrinho Multi-Restaurante). |
+| **Regras de Negócio** | Persistência híbrida do estado (localStorage client-side com sincronização remota). O sistema deve ser capaz de agrupar os itens por restaurante gerando sub-pedidos distintos na finalização. Quantidade limitante operacional por item: 99 unidades. |
 | **Criticidade** | Máxima |
 
 ### RF07 — Orquestração de Checkout e Pedidos
@@ -73,8 +73,8 @@ Este documento cataloga os requisitos técnicos, operacionais e de negócio que 
 | Propriedade | Especificação |
 | --- | --- |
 | **Identificador** | RF07 |
-| **Descrição** | O sistema deve processar a transição do estado do carrinho para um Pedido oficial (`Order`), submetendo as variáveis de entrega e restrições alimentares. |
-| **Regras de Negócio** | Requisição fortemente tipada e com autorização exigida. A aplicação deve realizar um snapshot contábil (congelamento) do preço unitário de cada item no momento da criação do pedido para garantir integridade fiscal histórica. Transmissão imediata via WebSocket para o terminal do restaurante. |
+| **Descrição** | O sistema deve processar a transição do estado do carrinho para um Pedido oficial (`Order`), subdividindo-o em sub-pedidos por restaurante, submetendo opções de método de entrega (retirada/entrega), método de pagamento (PIX, Cartão, Dinheiro), endereço de entrega e cupons de desconto aplicáveis a cada sub-pedido. |
+| **Regras de Negócio** | Requisição fortemente tipada e com autorização exigida. A aplicação deve realizar um snapshot contábil (congelamento) do preço unitário de cada item e seus adicionais no momento da criação do pedido para garantir integridade fiscal. O sistema aplicará as taxas de entrega e cálculos de cupons independentemente para cada sub-pedido. Transmissão imediata via WebSocket para o terminal de cada restaurante envolvido. |
 | **Criticidade** | Máxima |
 
 ### RF08 — Gerenciamento Operacional de Pedidos
@@ -94,7 +94,7 @@ Este documento cataloga os requisitos técnicos, operacionais e de negócio que 
 * **Volume Alvo:** A arquitetura deve ser desenhada para suportar 500+ tenants e processar volumes superiores a 10.000 pedidos diários.
 * **Performance da API:** O percentil P95 do tempo de resposta da API deve ser estritamente inferior a 200ms.
 * **Comunicação Assíncrona:** A infraestrutura de WebSockets deve sustentar 1.000 conexões ativas simultâneas sem degradação do channel layer.
-* **Storage:** Utilização de instâncias escaláveis horizontalmente com cache de sessão.
+* **Storage:** Utilização do MongoDB como banco de dados NoSQL primário estruturado para alta performance em leituras (através de documentos embutidos) e instâncias escaláveis com cache de sessão.
 
 ### RNF02 — Padrões de Segurança e Compliance
 * **Criptografia:** Senhas protegidas via algoritmo `bcrypt` com custo computacional mínimo configurado para 12.

@@ -46,25 +46,26 @@ sequenceDiagram
     
     %% Validação de Integridade
     Core->>Core: Validate Constraints (Tenant Ativo, Produtos Disponíveis)
-    Core->>Core: Executa Snapshot Financeiro das Matrizes BSON
+    Core->>Core: Desmembra itens em N Sub-Pedidos por Restaurante
+    Core->>Core: Executa Snapshot Financeiro (BSON) para cada sub-pedido
     
-    Core->>DB: insertOne(Order Document)
+    Core->>DB: insertOne(Order Document containing sub_pedidos)
     DB-->>Core: Order Object ID gerado
-    Core-->>API: Representação de Domínio (Order)
+    Core-->>API: Representação de Domínio (Order com sub_pedidos)
     
     %% Comunicação Assíncrona (Event-driven)
-    API-)WS: Broadcast Assíncrono (notify_new_order)
-    WS-)UI: Sincroniza Terminal do Gestor (Tenant_WS_Group)
+    API-)WS: Broadcast Assíncrono (notify_new_order iterado por sub-pedido)
+    WS-)UI: Sincroniza Múltiplos Terminais de Gestores (Tenant_WS_Groups 1..N)
     
     API-->>UI: HTTP 201 Created (Recibo Transacional: #ORD-XXXX)
-    UI-->>C: Confirmação Visual Renderizada
+    UI-->>C: Confirmação Visual Renderizada com divisão por Restaurante
 ```
 
 ---
 
 ## 7.2 Fluxo Arquitetural de Provisionamento e *Upload*
 
-O fluxo administrativo descreve a sequência exigida para a criação do ambiente virtual de um locatário, lidando explicitamente com a complexidade transacional de anexos e armazenamento *Out-of-Band* (Amazon S3).
+O fluxo administrativo descreve a sequência exigida para a criação do ambiente virtual de um locatário, lidando explicitamente com a complexidade transacional de anexos e armazenamento local.
 
 ```mermaid
 sequenceDiagram
@@ -73,7 +74,7 @@ sequenceDiagram
     participant API as API de Serviços
     participant BL as Tenant Business Logic
     participant DB as MongoDB Atlas
-    participant S3 as Object Storage (AWS S3)
+    participant Storage as Armazenamento Local
 
     G->>UI: Submete Formulário "Novo Restaurante" (inclui binário de imagem)
     UI->>API: POST /restaurants/ (Multipart Form-Data)
@@ -81,8 +82,8 @@ sequenceDiagram
     
     %% Fase de Armazenamento
     BL->>BL: Avalia Sanitização e Validadores MIME Type
-    BL->>S3: PutObject Request (Stream Binário da Capa)
-    S3-->>BL: HTTP 200 OK + CDN URL Absoluta
+    BL->>Storage: Salva Arquivo Binário da Capa
+    Storage-->>BL: HTTP 200 OK + URL Absoluta Local
     
     %% Fase de Registro e Finalização
     BL->>DB: insertOne(Tenant Payload contendo URL)
@@ -130,7 +131,7 @@ sequenceDiagram
 
 ## 7.4 Máquina de Estados (State Machine) Logística
 
-A evolução sequencial de um pedido reflete processos estritamente lineares. Retrocessos de transição não são suportados nativamente (exceto mediante falhas forçadas - cancelamento). O diagrama a seguir representa as fronteiras dessa transição de estado.
+A evolução sequencial de um pedido reflete processos estritamente lineares. No novo modelo arquitetural, a Máquina de Estados atua independentemente em cada **Sub-Pedido** (nível de restaurante). Retrocessos de transição não são suportados nativamente (exceto mediante falhas forçadas - cancelamento). O diagrama a seguir representa as fronteiras dessa transição de estado por sub-pedido.
 
 ```mermaid
 stateDiagram-v2

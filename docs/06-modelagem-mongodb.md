@@ -10,17 +10,17 @@ Este documento especifica o design da base de dados não-relacional do Cardápio
 - [6.2 Coleção de Identidades: `usuarios`](#62-coleção-de-identidades-usuarios)
 - [6.3 Coleção de Tenants: `restaurantes`](#63-coleção-de-tenants-restaurantes)
 - [6.4 Coleção Transacional: `pedidos`](#64-coleção-transacional-pedidos)
-- [6.5 Coleção de Avaliações: `avaliacoes`](#65-coleção-de-avaliações-avaliacoes)
-- [6.6 Mapa de Entidade-Relacionamento (ERD)](#66-mapa-de-entidade-relacionamento-erd)
-- [6.7 Validação de Schema Nativa](#67-validação-de-schema-nativa)
+- [6.5 Mapa de Entidade-Relacionamento (ERD)](#65-mapa-de-entidade-relacionamento-erd)
+- [6.6 Validação de Schema Nativa](#66-validação-de-schema-nativa)
 
 ---
 
 ## 6.1 Estratégia Estrutural
 
 A modelagem de dados foi arquitetada combinando os padrões estritos de bancos NoSQL voltados para escalabilidade horizontal:
-* **Embedded Document Pattern:** Produtos são embutidos diretamente nos restaurantes, visto que raramente são acessados de maneira isolada de seu tenant e o limite de array não excede a restrição de 16MB de um documento BSON.
-* **Extended Reference Pattern:** Pedidos referenciam os usuários, mas executam "snapshots" pontuais dos preços e nomes dos produtos. Isso impede a alteração retrospectiva de uma nota fiscal se um dono de restaurante alterar o preço de um hambúrguer no futuro.
+* **Embedded Document Pattern Agressivo:** Produtos, Adicionais, Avaliações de Clientes, Cupons, Horários de Funcionamento e Endereços são embutidos diretamente nos documentos de Restaurantes ou Pedidos. Isso evita sub-consultas (*JOIN/Lookup*) e garante performance extrema na leitura do catálogo.
+* **Extended Reference Pattern:** Pedidos referenciam os usuários, mas executam "snapshots" pontuais dos preços e nomes dos produtos, bem como das propriedades do carrinho no ato do fechamento.
+* **Multitenancy Isolado por Sub-Pedidos:** Um único `Pedido` consolidado pode agrupar itens de diferentes restaurantes, subdividindo-se em `sub_pedidos` independentes, cada um possuindo seu próprio fluxo de status e taxas (carrinho multi-restaurante).
 
 ---
 
@@ -36,11 +36,11 @@ A coleção de *usuarios* age como a matriz global de acesso, agrupando clientes
   "nome": "string",
   "telefone": "string | null",
   "papel": "string (enum: 'cliente', 'dono')",
-  "avatar_url": "string | null (URL Absoluta AWS S3)",
+  "avatar_url": "string | null (URL Absoluta)",
   "google_id": "string | null (Indexado Sparse, Unique)",
   "enderecos": [
     {
-      "rotulo": "string (ex: Residência)",
+      "rotulo": "string (ex: Casa)",
       "rua": "string",
       "numero": "string",
       "complemento": "string | null",
@@ -52,6 +52,8 @@ A coleção de *usuarios* age como a matriz global de acesso, agrupando clientes
     }
   ],
   "esta_ativo": "boolean",
+  "tentativas_login_falhas": "integer",
+  "bloqueado_ate": "ISODate() | null",
   "criado_em": "ISODate()",
   "atualizado_em": "ISODate()"
 }
@@ -68,7 +70,7 @@ db.usuarios.createIndex({ "papel": 1 })
 
 ## 6.3 Coleção de Tenants: `restaurantes`
 
-A coleção `restaurantes` é a estrutura de maior densidade no sistema. Ao englobar a grade de *horarios_funcionamento* e os *produtos*, ela permite a renderização completa de uma página de restaurante sem a necessidade de gerar sub-consultas (*JOIN/Lookup*).
+A coleção `restaurantes` é a estrutura de maior densidade no sistema. Ela engloba a grade de *horarios_funcionamento*, os *pratos* (produtos) com seus *adicionais*, os *cupons* de desconto e a agregação das *avaliações*, permitindo a renderização completa e independente do locatário.
 
 ```json
 {
@@ -87,6 +89,7 @@ A coleção `restaurantes` é a estrutura de maior densidade no sistema. Ao engl
   "endereco": {
     "rua": "string",
     "numero": "string",
+    "complemento": "string | null",
     "bairro": "string",
     "cidade": "string",
     "estado": "string",
@@ -105,7 +108,7 @@ A coleção `restaurantes` é a estrutura de maior densidade no sistema. Ao engl
     }
   ],
   "categorias": ["string"],
-  "produtos": [
+  "pratos": [
     {
       "_id": "ObjectId()",
       "nome": "string",
@@ -113,16 +116,54 @@ A coleção `restaurantes` é a estrutura de maior densidade no sistema. Ao engl
       "preco": "number (Decimal128)",
       "categoria": "string (enum)",
       "imagem_url": "string",
+      "imagens": ["string"],
       "esta_disponivel": "boolean",
       "ordem": "integer",
+      "estoque": "integer",
+      "ingredientes_principais": "string",
+      "adicionais": [
+        {
+          "nome": "string",
+          "preco": "number (Decimal128)"
+        }
+      ],
       "criado_em": "ISODate()",
       "atualizado_em": "ISODate()"
     }
   ],
+  "cupons": [
+    {
+      "_id": "ObjectId()",
+      "codigo": "string",
+      "descricao": "string | null",
+      "tipo_desconto": "string (enum: 'porcentagem', 'fixo')",
+      "valor_desconto": "number (Decimal128)",
+      "pedido_minimo": "number (Decimal128)",
+      "max_usos": "integer",
+      "contagem_usos": "integer",
+      "valido_de": "ISODate()",
+      "valido_ate": "ISODate() | null",
+      "esta_ativo": "boolean"
+    }
+  ],
+  "taxa_entrega": "number (Decimal128)",
+  "tempo_entrega_estimado": "string",
   "status": "string (enum: 'ativo', 'inativo', 'suspenso')",
   "avaliacao": {
     "media": "number (escala 0-5)",
-    "contagem": "integer"
+    "contagem": "integer",
+    "avaliacoes": [
+      {
+        "_id": "ObjectId()",
+        "cliente_id": "ObjectId() (Ref: usuarios)",
+        "nome_cliente": "string",
+        "restaurante_id": "ObjectId() (Ref: restaurantes)",
+        "pedido_id": "ObjectId() | null (Ref: pedidos)",
+        "nota": "integer (1-5)",
+        "comentario": "string | null",
+        "criado_em": "ISODate()"
+      }
+    ]
   },
   "criado_em": "ISODate()",
   "atualizado_em": "ISODate()"
@@ -134,8 +175,7 @@ A coleção `restaurantes` é a estrutura de maior densidade no sistema. Ao engl
 db.restaurantes.createIndex({ "slug": 1 }, { unique: true })
 db.restaurantes.createIndex({ "dono_id": 1 })
 db.restaurantes.createIndex({ "status": 1 })
-db.restaurantes.createIndex({ "nome": "text", "descricao": "text" })
-db.restaurantes.createIndex({ "endereco.coordenadas": "2dsphere" })
+db.restaurantes.createIndex({ "nome": "text", "descricao": "text" }, { default_language: "portuguese" })
 db.restaurantes.createIndex({ "produtos.categoria": 1 })
 ```
 
@@ -143,42 +183,63 @@ db.restaurantes.createIndex({ "produtos.categoria": 1 })
 
 ## 6.4 Coleção Transacional: `pedidos`
 
-Documentos de ordem de serviço são estruturas imutáveis que operam como registros contábeis, armazenando em suas matrizes o valor monetário real acordado no ato do checkout.
+Documentos de ordem de serviço suportam compras em múltiplos restaurantes simultaneamente, segmentando os carrinhos em `sub_pedidos` independentes, atuando como registros contábeis imutáveis e protegendo a integridade fiscal.
 
 ```json
 {
   "_id": "ObjectId()",
-  "numero_pedido": "string (Unique, Prefixo: ORD-2026-X)",
+  "numero_pedido": "string (Unique)",
   "cliente_id": "ObjectId() (Ref: usuarios)",
-  "restaurante_id": "ObjectId() (Ref: restaurantes)",
-  "itens": [
+  "sub_pedidos": [
     {
-      "produto_id": "ObjectId()",
-      "nome": "string (Snapshot Congelado)",
-      "preco": "number (Decimal128)",
-      "quantidade": "integer",
-      "subtotal": "number (Decimal128)",
-      "imagem_url": "string"
+      "restaurante_id": "ObjectId() (Ref: restaurantes)",
+      "itens": [
+        {
+          "prato_id": "ObjectId()",
+          "nome": "string (Snapshot)",
+          "preco": "number (Decimal128)",
+          "quantidade": "integer",
+          "subtotal": "number (Decimal128)",
+          "imagem_url": "string | null",
+          "extras": [
+            {
+              "nome": "string",
+              "preco": "number (Decimal128)"
+            }
+          ]
+        }
+      ],
+      "total": "number (Decimal128)",
+      "taxa_entrega": "number (Decimal128)",
+      "valor_desconto": "number (Decimal128)",
+      "codigo_cupom": "string",
+      "status": "string (enum: 'pendente', 'confirmado', 'preparando', 'pronto', 'entregue', 'cancelado')",
+      "historico_status": [
+        {
+          "status": "string",
+          "alterado_em": "ISODate()",
+          "alterado_por": "ObjectId() | null"
+        }
+      ]
     }
   ],
-  "total": "number (Decimal128)",
-  "status": "string (enum: 'pendente', 'confirmado', 'preparando', 'pronto', 'entregue', 'cancelado')",
-  "historico_status": [
-    {
-      "status": "string",
-      "alterado_em": "ISODate()",
-      "alterado_por": "ObjectId() (Ref: usuarios)"
-    }
-  ],
+  "total": "number (Decimal128) (Soma de todos os sub-pedidos)",
+  "taxa_entrega": "number (Decimal128)",
+  "valor_desconto": "number (Decimal128)",
+  "codigo_cupom": "string",
+  "status": "string (Status Macro)",
+  "historico_status": ["Embedded Document Array"],
   "metodo_entrega": "string (enum: 'entrega', 'retirada')",
   "endereco_entrega": {
     "rua": "string",
     "numero": "string",
+    "complemento": "string",
     "bairro": "string",
     "cidade": "string",
     "estado": "string",
     "cep": "string"
   },
+  "metodo_pagamento": "string (enum: 'pix', 'cartao', 'dinheiro')",
   "observacoes": "string | null",
   "criado_em": "ISODate()",
   "atualizado_em": "ISODate()"
@@ -189,40 +250,16 @@ Documentos de ordem de serviço são estruturas imutáveis que operam como regis
 ```javascript
 db.pedidos.createIndex({ "numero_pedido": 1 }, { unique: true })
 db.pedidos.createIndex({ "cliente_id": 1, "criado_em": -1 })
-db.pedidos.createIndex({ "restaurante_id": 1, "status": 1, "criado_em": -1 })
+db.pedidos.createIndex({ "sub_pedidos.restaurante_id": 1, "sub_pedidos.status": 1, "criado_em": -1 })
+db.pedidos.createIndex({ "status": 1 })
+db.pedidos.createIndex({ "criado_em": -1 })
 ```
 
 ---
 
-## 6.5 Coleção de Avaliações: `avaliacoes`
+## 6.5 Mapa de Entidade-Relacionamento (ERD)
 
-A coleção de *avaliacoes* permite o registro do feedback dos clientes após a conclusão de um pedido. Esta coleção armazena os dados em português, referenciando o restaurante e opcionalmente o pedido.
-
-```json
-{
-  "_id": "ObjectId()",
-  "cliente_id": "ObjectId() (Ref: usuarios)",
-  "nome_cliente": "string",
-  "restaurante_id": "ObjectId() (Ref: restaurantes)",
-  "pedido_id": "ObjectId() | null (Ref: pedidos)",
-  "nota": "integer (1-5)",
-  "comentario": "string | null",
-  "criado_em": "ISODate()"
-}
-```
-
-### Índices de Performance (`avaliacoes`)
-```javascript
-db.avaliacoes.createIndex({ "restaurante_id": 1, "criado_em": -1 })
-db.avaliacoes.createIndex({ "cliente_id": 1 })
-db.avaliacoes.createIndex({ "pedido_id": 1 }, { sparse: true })
-```
-
----
-
-## 6.6 Mapa de Entidade-Relacionamento (ERD)
-
-A abstração abaixo mapeia como o banco NoSQL implementa o conceito de ligação através das abordagens híbridas de Foreign Keys lógicas e Embedded Objects.
+A abstração abaixo mapeia como o banco NoSQL implementa o conceito de ligação através das abordagens híbridas de Foreign Keys lógicas e Embedded Objects, refletindo o modelo multi-restaurante e os novos embutimentos (Avaliações e Cupons).
 
 ```mermaid
 erDiagram
@@ -238,54 +275,43 @@ erDiagram
         ObjectId dono_id FK
         string nome
         string slug
-        array produtos "Embedded Pattern"
+        array pratos "Embedded (com adicionais)"
+        array cupons "Embedded"
+        object avaliacao "Embedded (com array avaliacoes)"
     }
 
-    produtos {
+    pratos {
         ObjectId _id PK
         string nome
         decimal preco
-        string categoria
+        array adicionais "Embedded"
     }
 
     pedidos {
         ObjectId _id PK
         ObjectId cliente_id FK
-        ObjectId restaurante_id FK
         decimal total
         string status
-        array itens "Snapshot Estrito"
+        array sub_pedidos "Embedded"
     }
 
-    itens {
-        ObjectId produto_id FK
-        string nome
-        decimal preco
-        int quantidade
-    }
-
-    avaliacoes {
-        ObjectId _id PK
-        ObjectId cliente_id FK
+    sub_pedidos {
         ObjectId restaurante_id FK
-        ObjectId pedido_id FK
-        int nota
-        string comentario
+        string status
+        decimal total
+        array itens "Snapshot Estrito com extras"
     }
 
     usuarios ||--o{ restaurantes : "Detém a Propriedade"
     usuarios ||--o{ pedidos : "Inicia uma Transação"
-    usuarios ||--o{ avaliacoes : "Realiza"
-    restaurantes ||--o{ produtos : "Encapsula o Objeto"
-    restaurantes ||--o{ pedidos : "Recepciona e Processa"
-    restaurantes ||--o{ avaliacoes : "Recebe"
-    pedidos ||--o{ itens : "Possui Fragmentos Financeiros"
-    pedidos ||--o| avaliacoes : "Pode ser Avaliado"
+    restaurantes ||--o{ pratos : "Encapsula o Objeto"
+    pedidos ||--o{ sub_pedidos : "Desmembra em Múltiplos Restaurantes"
+    sub_pedidos }o--|| restaurantes : "Roteado para"
 ```
 
 ---
 
-## 6.7 Validação de Schema Nativa
+## 6.6 Validação de Schema Nativa
 
 Apesar do design Schema-less do MongoDB, proteções contra a gravação de dados falhos são aplicadas no *Driver* através do *JSON Schema Validator* atrelado às coleções core.
 
@@ -294,23 +320,28 @@ db.createCollection("pedidos", {
   validator: {
     $jsonSchema: {
       bsonType: "object",
-      required: ["numero_pedido", "cliente_id", "restaurante_id", "itens", "total", "status"],
+      required: ["numero_pedido", "cliente_id", "sub_pedidos", "total", "status", "metodo_entrega", "metodo_pagamento"],
       properties: {
-        status: { 
-          enum: ["pendente", "confirmado", "preparando", "pronto", "entregue", "cancelado"],
-          description: "A violação do fluxo transacional reverte a inserção."
-        },
         total: { 
           bsonType: "decimal", 
           minimum: 0,
           description: "A totalização não pode sofrer inconsistência negativa."
         },
-        itens: {
+        sub_pedidos: {
           bsonType: "array",
           minItems: 1,
           items: {
             bsonType: "object",
-            required: ["produto_id", "nome", "preco", "quantidade", "subtotal"]
+            required: ["restaurante_id", "itens", "total", "status"],
+            properties: {
+              status: {
+                enum: ["pendente", "confirmado", "preparando", "pronto", "entregue", "cancelado"]
+              },
+              itens: {
+                bsonType: "array",
+                minItems: 1
+              }
+            }
           }
         }
       }
