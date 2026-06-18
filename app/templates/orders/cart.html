@@ -288,9 +288,9 @@
         // Adicionais
         const extrasContainer = document.getElementById('pm-extras-container');
         extrasContainer.innerHTML = '';
-        if (p.ingredientes && p.ingredientes.length > 0) {
+        if (p.adicionais && p.adicionais.length > 0) {
             document.getElementById('pm-extras-section').classList.remove('hidden');
-            p.ingredientes.forEach((ing, idx) => {
+            p.adicionais.forEach((ing, idx) => {
                 const isChecked = cartItem && cartItem.extras && cartItem.extras.some(e => e.nome === ing.nome);
                 if (isChecked) {
                     selectedExtras.push({ nome: ing.nome, preco: ing.preco });

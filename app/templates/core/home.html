@@ -340,9 +340,9 @@
         // Adicionais
         const extrasContainer = document.getElementById('pm-extras-container');
         extrasContainer.innerHTML = '';
-        if (p.ingredientes && p.ingredientes.length > 0) {
+        if (p.adicionais && p.adicionais.length > 0) {
             document.getElementById('pm-extras-section').classList.remove('hidden');
-            p.ingredientes.forEach((ing, idx) => {
+            p.adicionais.forEach((ing, idx) => {
                 extrasContainer.innerHTML += `
                     <label class="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-transparent hover:border-red-200 cursor-pointer transition-all group">
                         <div class="flex items-center gap-3">

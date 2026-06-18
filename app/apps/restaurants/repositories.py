@@ -109,7 +109,7 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
                     'media': {'$toDouble': {'$ifNull': ['$avaliacao.media', 0.0]}},
                     'contagem': {'$toInt': {'$ifNull': ['$avaliacao.contagem', 0]}}
                 },
-                'ingredientes': {
+                'adicionais': {
                     '$map': {
                         'input': {'$ifNull': ['$pratos.ingredientes', []]},
                         'as': 'ing',

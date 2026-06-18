@@ -20,8 +20,8 @@ class BusinessHourSerializer(serializers.Serializer):
     fechamento = serializers.CharField(max_length=5, required=False)
     fechado = serializers.BooleanField(default=False)
 
-class IngredientSerializer(serializers.Serializer):
-    """Serializador para o novo subdocumento Ingrediente."""
+class AdicionalSerializer(serializers.Serializer):
+    """Serializador para o novo subdocumento Adicional."""
     nome = serializers.CharField(max_length=100)
     preco = serializers.DecimalField(max_digits=10, decimal_places=2, default=0) # Novo
 
@@ -52,7 +52,7 @@ class CreateProductSerializer(serializers.Serializer):
     esta_disponivel = serializers.BooleanField(default=True)
     ordem = serializers.IntegerField(default=0, required=False)
     estoque = serializers.IntegerField(default=-1, required=False)
-    ingredientes = IngredientSerializer(many=True, required=False, default=list) # Adicionado
+    adicionais = AdicionalSerializer(many=True, required=False, default=list) # Adicionado
 
 class UpdateProductSerializer(serializers.Serializer):
     nome = serializers.CharField(max_length=100, required=False)
@@ -63,7 +63,7 @@ class UpdateProductSerializer(serializers.Serializer):
     esta_disponivel = serializers.BooleanField(required=False)
     ordem = serializers.IntegerField(required=False)
     estoque = serializers.IntegerField(required=False)
-    ingredientes = IngredientSerializer(many=True, required=False) # Adicionado
+    adicionais = AdicionalSerializer(many=True, required=False) # Adicionado
 
 class CreateCouponSerializer(serializers.Serializer):
     codigo = serializers.CharField(max_length=30)

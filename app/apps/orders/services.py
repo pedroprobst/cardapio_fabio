@@ -92,7 +92,7 @@ class ServicoPedido:
 
                     # Busca o ingrediente original no banco para validar o preço real
                     ing_original = next(
-                        (i for i in produto.ingredientes if i.nome.strip().lower() == nome_extra),
+                        (i for i in produto.adicionais if i.nome.strip().lower() == nome_extra),
                         None
                     )
 

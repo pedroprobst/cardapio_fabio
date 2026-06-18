@@ -20,7 +20,7 @@ from apps.restaurants.documents import (
     Contato,
     Cupom,
     Produto,
-    Ingrediente,
+    Adicional,
     Restaurante,
     EnderecoRestaurante,
 )
@@ -280,9 +280,9 @@ class ProductService:
             esta_disponivel=data.get('esta_disponivel', True),
             ordem=data.get('ordem', 0),
             estoque=data.get('estoque', -1),
-            ingredientes=[
-                Ingrediente(nome=i['nome'], preco=Decimal(str(i['preco']))) 
-                for i in data.get('ingredientes', [])
+            adicionais=[
+                Adicional(nome=i['nome'], preco=Decimal(str(i['preco']))) 
+                for i in data.get('adicionais', [])
             ],
         )
         restaurante.produtos.append(produto)
@@ -302,7 +302,7 @@ class ProductService:
 
         campos_permitidos = [
             'nome', 'descricao', 'ingredientes_principais', 'preco', 'categoria', 
-            'esta_disponivel', 'ordem', 'estoque', 'ingredientes'
+            'esta_disponivel', 'ordem', 'estoque', 'adicionais'
         ]
 
         for field in campos_permitidos:
@@ -310,9 +310,9 @@ class ProductService:
                 val = data[field]
                 if field in ('nome', 'descricao', 'ingredientes_principais') and isinstance(val, str):
                     val = sanitize_input(val)
-                elif field == 'ingredientes' and isinstance(val, list):
+                elif field == 'adicionais' and isinstance(val, list):
                     val = [
-                        Ingrediente(nome=i['nome'], preco=Decimal(str(i['preco']))) 
+                        Adicional(nome=i['nome'], preco=Decimal(str(i['preco']))) 
                         for i in val
                     ]
                 setattr(produto, field, val)

@@ -44,8 +44,8 @@ class Avaliacao(me.EmbeddedDocument):
     avaliacoes = me.EmbeddedDocumentListField(AvaliacaoReview, default=list)
     meta = {'strict': False}
 
-class Ingrediente(me.EmbeddedDocument):
-    """Subdocumento para ingredientes de um prato."""
+class Adicional(me.EmbeddedDocument):
+    """Subdocumento para adicionais de um prato."""
     nome = me.StringField(required=True, max_length=100)
     preco = me.DecimalField(default=0.0, precision=2) # Novo campo para o valor do adicional
     meta = {'strict': False}
@@ -68,7 +68,7 @@ class Produto(me.EmbeddedDocument):
     ordem = me.IntField(default=0)
     estoque = me.IntField(default=-1)
     ingredientes_principais = me.StringField(required=True, max_length=300, default='')
-    ingredientes = me.EmbeddedDocumentListField(Ingrediente, default=list) # Nova funcionalidade
+    adicionais = me.EmbeddedDocumentListField(Adicional, default=list) # Nova funcionalidade
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
     atualizado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
 
@@ -93,7 +93,7 @@ class Produto(me.EmbeddedDocument):
             'esta_disponivel': self.esta_disponivel,
             'ordem': self.ordem,
             'estoque': self.estoque,
-            'ingredientes': [{'nome': ing.nome, 'preco': float(ing.preco)} for ing in self.ingredientes],
+            'adicionais': [{'nome': ing.nome, 'preco': float(ing.preco)} for ing in self.adicionais],
         }
 
 class Cupom(me.EmbeddedDocument):
