@@ -41,6 +41,7 @@ class Avaliacao(me.EmbeddedDocument):
     """Informação agregada de avaliação."""
     media = me.FloatField(default=0.0, min_value=0, max_value=5)
     contagem = me.IntField(default=0, min_value=0)
+    avaliacoes = me.EmbeddedDocumentListField(AvaliacaoReview, default=list)
     meta = {'strict': False}
 
 class Ingrediente(me.EmbeddedDocument):
@@ -148,7 +149,6 @@ class Restaurante(me.Document):
     tempo_entrega_estimado = me.StringField(max_length=50, default='40-50 min')
     status = me.StringField(choices=OPCOES_STATUS, default='ativo')
     avaliacao = me.EmbeddedDocumentField(Avaliacao, default=Avaliacao)
-    avaliacoes = me.EmbeddedDocumentListField(AvaliacaoReview, default=list)
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
     atualizado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
 

@@ -37,39 +37,45 @@ class ReviewService:
         pedido_id: str | None = None,
     ) -> dict:
         """Cria uma nova avaliação e atualiza a média do restaurante."""
-        if pedido_id:
-            existing = self.repo.buscar_por_cliente_e_pedido(customer_id, pedido_id)
-            if existing:
-                raise ValueError("Você já avaliou este pedido.")
-
         restaurante = self.restaurant_repo.find_by_id(restaurante_id)
         if not restaurante:
             raise ResourceNotFoundError('Restaurante')
 
-        avaliacao = Avaliacao(
-            cliente_id=ObjectId(customer_id),
-            nome_cliente=sanitize_input(customer_name),
-            restaurante_id=ObjectId(restaurante_id),
-            pedido_id=ObjectId(pedido_id) if pedido_id else None,
-            nota=nota,
-            comentario=sanitize_input(comentario) if comentario else '',
-        )
+        # Verifica se já existe avaliação deste cliente para este pedido no mesmo restaurante
+        existing = None
+        if pedido_id:
+            for av in restaurante.avaliacao.avaliacoes:
+                if str(av.cliente_id) == customer_id and str(av.pedido_id) == pedido_id:
+                    existing = av
+                    break
 
-        # Adiciona a avaliação à lista embarcada do restaurante
-        restaurante.avaliacoes.append(avaliacao)
+        if existing:
+            # Atualiza a avaliação existente
+            existing.nota = nota
+            existing.comentario = sanitize_input(comentario) if comentario else ''
+            avaliacao = existing
+            logger.info("Avaliação atualizada: cliente=%s, restaurante=%s, nota=%d", customer_id, restaurante_id, nota)
+        else:
+            # Cria nova avaliação
+            avaliacao = Avaliacao(
+                cliente_id=ObjectId(customer_id),
+                nome_cliente=sanitize_input(customer_name),
+                restaurante_id=ObjectId(restaurante_id),
+                pedido_id=ObjectId(pedido_id) if pedido_id else None,
+                nota=nota,
+                comentario=sanitize_input(comentario) if comentario else '',
+            )
+            restaurante.avaliacao.avaliacoes.append(avaliacao)
+            logger.info("Avaliação criada: cliente=%s, restaurante=%s, nota=%d", customer_id, restaurante_id, nota)
 
         # Atualiza a nota e contagem do restaurante diretamente em memória
-        notas = [av.nota for av in restaurante.avaliacoes]
+        notas = [av.nota for av in restaurante.avaliacao.avaliacoes]
         restaurante.avaliacao.media = round(sum(notas) / len(notas), 1) if notas else 0.0
         restaurante.avaliacao.contagem = len(notas)
 
         # Salva o restaurante, o que persiste as avaliações embarcadas
         self.restaurant_repo.save(restaurante)
 
-        logger.info(
-            "Avaliação criada: cliente=%s, restaurante=%s, nota=%d",
-            customer_id, restaurante_id, nota,
-        )
         return avaliacao.to_dict()
 
     def list_restaurant_reviews(

@@ -105,7 +105,10 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
                 'estoque': {'$ifNull': ['$pratos.estoque', -1]},
                 'taxa_entrega': {'$toDouble': {'$ifNull': ['$taxa_entrega', 0]}},
                 'tempo_entrega_estimado': {'$ifNull': ['$tempo_entrega_estimado', '40-50 min']},
-                'avaliacao': '$avaliacao',
+                'avaliacao': {
+                    'media': {'$toDouble': {'$ifNull': ['$avaliacao.media', 0.0]}},
+                    'contagem': {'$toInt': {'$ifNull': ['$avaliacao.contagem', 0]}}
+                },
                 'ingredientes': {
                     '$map': {
                         'input': {'$ifNull': ['$pratos.ingredientes', []]},
