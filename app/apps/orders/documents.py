@@ -8,7 +8,7 @@ import mongoengine as me
 
 class ItemPedido(me.EmbeddedDocument):
     """Item do pedido — snapshot do produto no momento do pedido."""
-    produto_id = me.ObjectIdField(required=True)
+    prato_id = me.ObjectIdField(required=True)
     nome = me.StringField(required=True)
     preco = me.DecimalField(required=True, precision=2)
     quantidade = me.IntField(required=True, min_value=1, max_value=99)
@@ -74,8 +74,6 @@ class Pedido(me.Document):
 
     numero_pedido = me.StringField(required=True, unique=True)
     cliente_id = me.ObjectIdField(required=True)
-    restaurante_id = me.ObjectIdField(required=False)
-    itens = me.EmbeddedDocumentListField(ItemPedido, required=False)
     sub_pedidos = me.EmbeddedDocumentListField(SubPedido, default=list)
     total = me.DecimalField(required=True, precision=2, min_value=0)
     taxa_entrega = me.DecimalField(default=0, precision=2)
@@ -95,7 +93,6 @@ class Pedido(me.Document):
         'indexes': [
             {'fields': ['numero_pedido'], 'unique': True},
             {'fields': ['cliente_id', '-criado_em']},
-            {'fields': ['restaurante_id', 'status', '-criado_em']},
             {'fields': ['sub_pedidos.restaurante_id', 'sub_pedidos.status', '-criado_em']},
             {'fields': ['status']},
             {'fields': ['-criado_em']},
@@ -108,69 +105,66 @@ class Pedido(me.Document):
         self.atualizado_em = datetime.now(timezone.utc)
         return super().save(*args, **kwargs)
 
+    def get_sub_pedidos(self):
+        """Retorna a lista de sub_pedidos."""
+        return list(self.sub_pedidos) if self.sub_pedidos else []
+
+    @staticmethod
+    def _serializar_itens(itens):
+        """Serializa uma lista de ItemPedido para dicts."""
+        return [
+            {
+                'prato_id': str(item.prato_id),
+                'nome': item.nome,
+                'preco': float(item.preco),
+                'quantidade': item.quantidade,
+                'subtotal': float(item.subtotal),
+                'imagem_url': item.imagem_url,
+                'extras': item.extras,
+            }
+            for item in itens
+        ]
+
+    @staticmethod
+    def _serializar_historico(historico):
+        """Serializa uma lista de MudancaStatus para dicts."""
+        return [
+            {
+                'status': hs.status,
+                'alterado_em': hs.alterado_em.isoformat() if hs.alterado_em else None,
+                'alterado_por': str(hs.alterado_por) if hs.alterado_por else None,
+            }
+            for hs in historico
+        ]
+
     def to_dict(self):
+        sub_pedidos = self.get_sub_pedidos()
+
+        sub_pedidos_dict = [
+            {
+                'restaurante_id': str(sp.restaurante_id),
+                'itens': self._serializar_itens(sp.itens),
+                'total': float(sp.total) if sp.total else 0,
+                'taxa_entrega': float(sp.taxa_entrega) if sp.taxa_entrega else 0,
+                'valor_desconto': float(sp.valor_desconto) if sp.valor_desconto else 0,
+                'codigo_cupom': sp.codigo_cupom,
+                'status': sp.status,
+                'historico_status': self._serializar_historico(sp.historico_status),
+            }
+            for sp in sub_pedidos
+        ]
+
         return {
             'id': str(self.id),
             'numero_pedido': self.numero_pedido,
             'cliente_id': str(self.cliente_id),
-            'restaurante_id': str(self.restaurante_id) if self.restaurante_id else None,
-            'itens': [
-                {
-                    'produto_id': str(item.produto_id),
-                    'nome': item.nome,
-                    'preco': float(item.preco),
-                    'quantidade': item.quantidade,
-                    'subtotal': float(item.subtotal),
-                    'imagem_url': item.imagem_url,
-                    # INCREMENTO: Adicionado para o Front-end mostrar os nomes dos extras
-                    'extras': item.extras,
-                }
-                for item in self.itens
-            ] if self.itens else [],
-            'sub_pedidos': [
-                {
-                    'restaurante_id': str(sp.restaurante_id),
-                    'itens': [
-                        {
-                            'produto_id': str(item.produto_id),
-                            'nome': item.nome,
-                            'preco': float(item.preco),
-                            'quantidade': item.quantidade,
-                            'subtotal': float(item.subtotal),
-                            'imagem_url': item.imagem_url,
-                            'extras': item.extras,
-                        }
-                        for item in sp.itens
-                    ],
-                    'total': float(sp.total),
-                    'taxa_entrega': float(sp.taxa_entrega) if sp.taxa_entrega else 0,
-                    'valor_desconto': float(sp.valor_desconto) if sp.valor_desconto else 0,
-                    'codigo_cupom': sp.codigo_cupom,
-                    'status': sp.status,
-                    'historico_status': [
-                        {
-                            'status': hs.status,
-                            'alterado_em': hs.alterado_em.isoformat() if hs.alterado_em else None,
-                            'alterado_por': str(hs.alterado_por) if hs.alterado_por else None,
-                        }
-                        for hs in sp.historico_status
-                    ]
-                }
-                for sp in self.sub_pedidos
-            ] if self.sub_pedidos else [],
+            'sub_pedidos': sub_pedidos_dict,
             'total': float(self.total),
             'taxa_entrega': float(self.taxa_entrega) if self.taxa_entrega else 0,
             'valor_desconto': float(self.valor_desconto) if self.valor_desconto else 0,
             'codigo_cupom': self.codigo_cupom,
             'status': self.status,
-            'historico_status': [
-                {
-                    'status': hs.status,
-                    'alterado_em': hs.alterado_em.isoformat() if hs.alterado_em else None,
-                    'alterado_por': str(hs.alterado_por) if hs.alterado_por else None,
-                }
-                for hs in self.historico_status
-            ],
+            'historico_status': self._serializar_historico(self.historico_status),
             'metodo_entrega': self.metodo_entrega,
             'endereco_entrega': {
                 'rua': self.endereco_entrega.rua,

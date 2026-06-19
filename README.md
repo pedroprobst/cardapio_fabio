@@ -28,7 +28,10 @@ Uma plataforma SaaS de alta performance e multi-tenant desenvolvida para gestão
 
 ## Visão Geral do Sistema
 
-O Cardápio Online é uma solução *enterprise-grade* construída para eliminar a dependência de marketplaces terceirizados de delivery. O sistema empodera donos de restaurantes com total autonomia sobre sua presença digital, garantindo ao mesmo tempo uma infraestrutura escalável, tolerante a falhas e de alta disponibilidade, capaz de lidar com milhares de conexões simultâneas em tempo real.
+O Cardápio Online é uma plataforma SaaS (Software as a Service) centralizada, multi-tenant e escalável construída para eliminar a dependência de marketplaces terceirizados de delivery. O sistema empodera donos de restaurantes com total autonomia sobre sua presença digital, garantindo ao mesmo tempo uma infraestrutura escalável, tolerante a falhas e de alta disponibilidade, capaz de lidar com milhares de conexões simultâneas em tempo real.
+
+**Visão do Produto:**
+> *"Consolidar-se como a infraestrutura digital primária para operações de food service locais, democratizando o acesso a tecnologias de vendas online de alta performance e devolvendo o controle da jornada e da rentabilidade aos proprietários."*
 
 ---
 
@@ -67,7 +70,9 @@ O Cardápio Online é uma solução *enterprise-grade* construída para eliminar
 
 ## Arquitetura
 
-O sistema segue o rigoroso padrão *Layered Clean Architecture* para desacoplar as regras de negócio das camadas de apresentação e acesso a dados.
+O projeto utiliza uma arquitetura baseada em **Django** integrado a um banco de dados NoSQL **MongoDB** através do ODM **MongoEngine**, além de seguir o padrão *Layered Clean Architecture* para desacoplar as regras de negócio das camadas de apresentação e acesso a dados. 
+
+A modelagem de dados adota um **Embedded Document Pattern Agressivo** para garantir alta performance de leitura, priorizando as operações vitais de e-commerce. Para detalhes completos, consulte o [Documento de Arquitetura do Sistema](docs/05-arquitetura.md) e o [Diagrama de Sequência](docs/07-diagrama-de-sequencia.md).
 
 ```mermaid
 graph TD
@@ -77,14 +82,14 @@ graph TD
     SRV["Camada de Serviço (Service Layer)"]
     REP["Repositório / ODM"]
     DB[("MongoDB Atlas")]
-    S3[("AWS S3 / Armazenamento")]
+    Storage[("Armazenamento Local")]
 
     C <-->|HTTPS| API
     C <-->|WSS| WS
     API --> SRV
     WS --> SRV
     SRV --> REP
-    SRV --> S3
+    SRV --> Storage
     REP <--> DB
 ```
 
@@ -146,7 +151,6 @@ O projeto foi estruturado para ser executado localmente de forma simples, sem Do
 | `DEBUG` | Ativar/Desativar modo de depuração | `True` |
 | `ALLOWED_HOSTS` | Hostnames permitidos para o servidor | `localhost, 127.0.0.1` |
 | `MONGODB_URI` | String de Conexão do MongoDB | `mongodb://localhost:27017/cardapio` |
-| `AWS_ACCESS_KEY` | Credenciais de armazenamento S3 | - |
 
 ---
 
@@ -167,6 +171,19 @@ cardapio-online/
 ├── requirements.txt           # Dependências Python
 └── docs/                      # Documentação Técnica
 ```
+
+---
+
+## Documentação Técnica do Projeto
+
+A especificação técnica detalhada, arquitetura, requisitos e modelagem de dados encontram-se na pasta `docs/`. Consulte os links abaixo:
+
+- [1. Documento de Visão](docs/01-documento-de-visao.md)
+- [2. Especificação de Requisitos](docs/02-requisitos.md)
+- [3. Casos de Uso](docs/03-casos-de-uso.md)
+- [5. Arquitetura do Sistema](docs/05-arquitetura.md)
+- [6. Modelagem de Dados (MongoDB)](docs/06-modelagem-mongodb.md)
+- [7. Diagrama de Sequência](docs/07-diagrama-de-sequencia.md)
 
 ---
 
@@ -193,13 +210,6 @@ O Cardápio Online foi desenvolvido com os padrões de segurança da indústria 
 - **Integridade de Dados:** Proteção nativa contra injeções NoSQL (NoSQL Injection) e vulnerabilidades XSS.
 - **Cabeçalhos Seguros:** Implementação rigorosa de `X-Content-Type-Options`, `X-Frame-Options` e `X-XSS-Protection`.
 
----
-
-## Roadmap
-
-- **Fase 1:** Funcionalidades principais, painel em tempo real, integrações de pagamento.
-- **Fase 2:** Análises avançadas, upselling inteligente, recomendações de produtos baseadas em IA.
-- **Fase 3:** Aplicativos móveis nativos (React Native) para clientes finais e rastreamento de entregadores.
 
 ---
 

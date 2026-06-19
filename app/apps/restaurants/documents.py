@@ -41,10 +41,11 @@ class Avaliacao(me.EmbeddedDocument):
     """Informação agregada de avaliação."""
     media = me.FloatField(default=0.0, min_value=0, max_value=5)
     contagem = me.IntField(default=0, min_value=0)
+    avaliacoes = me.EmbeddedDocumentListField(AvaliacaoReview, default=list)
     meta = {'strict': False}
 
-class Ingrediente(me.EmbeddedDocument):
-    """Subdocumento para ingredientes de um prato."""
+class Adicional(me.EmbeddedDocument):
+    """Subdocumento para adicionais de um prato."""
     nome = me.StringField(required=True, max_length=100)
     preco = me.DecimalField(default=0.0, precision=2) # Novo campo para o valor do adicional
     meta = {'strict': False}
@@ -67,7 +68,7 @@ class Produto(me.EmbeddedDocument):
     ordem = me.IntField(default=0)
     estoque = me.IntField(default=-1)
     ingredientes_principais = me.StringField(required=True, max_length=300, default='')
-    ingredientes = me.EmbeddedDocumentListField(Ingrediente, default=list) # Nova funcionalidade
+    adicionais = me.EmbeddedDocumentListField(Adicional, default=list) # Nova funcionalidade
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
     atualizado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
 
@@ -92,7 +93,7 @@ class Produto(me.EmbeddedDocument):
             'esta_disponivel': self.esta_disponivel,
             'ordem': self.ordem,
             'estoque': self.estoque,
-            'ingredientes': [{'nome': ing.nome, 'preco': float(ing.preco)} for ing in self.ingredientes],
+            'adicionais': [{'nome': ing.nome, 'preco': float(ing.preco)} for ing in self.adicionais],
         }
 
 class Cupom(me.EmbeddedDocument):
@@ -148,7 +149,6 @@ class Restaurante(me.Document):
     tempo_entrega_estimado = me.StringField(max_length=50, default='40-50 min')
     status = me.StringField(choices=OPCOES_STATUS, default='ativo')
     avaliacao = me.EmbeddedDocumentField(Avaliacao, default=Avaliacao)
-    avaliacoes = me.EmbeddedDocumentListField(AvaliacaoReview, default=list)
     criado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
     atualizado_em = me.DateTimeField(default=lambda: datetime.now(timezone.utc))
 

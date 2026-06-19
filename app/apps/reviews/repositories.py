@@ -18,14 +18,14 @@ class RepositorioAvaliacao:
         """Verifica se o cliente já avaliou um pedido específico."""
         try:
             restaurante = Restaurante.objects(
-                avaliacoes__cliente_id=ObjectId(cliente_id),
-                avaliacoes__pedido_id=ObjectId(pedido_id)
+                avaliacao__avaliacoes__cliente_id=ObjectId(cliente_id),
+                avaliacao__avaliacoes__pedido_id=ObjectId(pedido_id)
             ).first()
         except Exception:
             return None
 
-        if restaurante:
-            for av in restaurante.avaliacoes:
+        if restaurante and restaurante.avaliacao:
+            for av in restaurante.avaliacao.avaliacoes:
                 if str(av.cliente_id) == cliente_id and str(av.pedido_id) == pedido_id:
                     return av
         return None
@@ -39,13 +39,13 @@ class RepositorioAvaliacao:
         except Exception:
             restaurante = None
 
-        if not restaurante or not restaurante.avaliacoes:
+        if not restaurante or not restaurante.avaliacao or not restaurante.avaliacao.avaliacoes:
             return PaginatedResult(results=[], count=0, page=page, total_pages=1, page_size=page_size)
 
         # Ordena em memória por criado_em desc (mais recentes primeiro)
         fallback_min = datetime.min.replace(tzinfo=timezone.utc)
         avaliacoes_sorted = sorted(
-            restaurante.avaliacoes,
+            restaurante.avaliacao.avaliacoes,
             key=lambda x: x.criado_em if x.criado_em else fallback_min,
             reverse=True
         )
@@ -73,10 +73,10 @@ class RepositorioAvaliacao:
         except Exception:
             restaurante = None
 
-        if not restaurante or not restaurante.avaliacoes:
+        if not restaurante or not restaurante.avaliacao or not restaurante.avaliacao.avaliacoes:
             return {'media': 0.0, 'contagem': 0}
 
-        notas = [av.nota for av in restaurante.avaliacoes]
+        notas = [av.nota for av in restaurante.avaliacao.avaliacoes]
         contagem = len(notas)
         media = round(sum(notas) / contagem, 1) if contagem > 0 else 0.0
         return {

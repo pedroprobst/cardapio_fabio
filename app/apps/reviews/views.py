@@ -47,3 +47,35 @@ class ReviewListView(APIView):
             **serializer.validated_data,
         )
         return Response(result, status=status.HTTP_201_CREATED)
+
+
+class MyReviewView(APIView):
+    """Retorna a avaliação existente do usuário para um pedido específico."""
+
+    def get(self, request):
+        """GET /api/reviews/my-review/?pedido_id=<id>"""
+        auth = JWTAuthentication()
+        user_auth = auth.authenticate(request)
+        if not user_auth:
+            return Response(
+                {'error': 'Autenticação necessária.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        user = user_auth[0]
+
+        pedido_id = request.query_params.get('pedido_id')
+        if not pedido_id:
+            return Response(
+                {'error': 'pedido_id é obrigatório.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        service = ReviewService()
+        review = service.get_user_review_for_order(
+            customer_id=str(user.id),
+            pedido_id=pedido_id,
+        )
+
+        if review:
+            return Response(review)
+        return Response({'exists': False}, status=status.HTTP_404_NOT_FOUND)

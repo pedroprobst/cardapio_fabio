@@ -46,6 +46,24 @@
         background-image: radial-gradient(circle at 20% 50%, rgba(229,57,53,0.04) 0%, transparent 50%),
                           radial-gradient(circle at 80% 20%, rgba(229,57,53,0.03) 0%, transparent 50%);
     }
+
+    /* Modal Animations */
+    .modal-overlay { opacity: 0; transition: opacity 0.3s ease; }
+    .modal-overlay.active { opacity: 1; }
+    .modal-content { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    @media (min-width: 640px) {
+        .modal-content { transform: translateY(20px) scale(0.95); opacity: 0; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        .modal-content.active { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .modal-content.active { transform: translateY(0); }
+    .gallery-thumb { border: 2px solid transparent; transition: all 0.2s; }
+    .gallery-thumb.active { border-color: #ef4444; }
+
+    /* Estilo para Adicionais */
+    .extra-checkbox:checked + .extra-card { border-color: #ef4444; background-color: #fef2f2; }
+
+    .scrollbar-hide::-webkit-scrollbar { display: none; }
+    .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 </style>
 {% endblock %}
 
@@ -134,6 +152,101 @@
         </button>
     </div>
 </section>
+
+<!-- Product Details Modal -->
+<div id="product-modal" class="fixed inset-0 z-50 hidden items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm modal-overlay">
+    <div id="product-modal-content" class="bg-white w-full sm:max-w-xl h-[90vh] sm:h-auto sm:max-h-[90vh] sm:rounded-2xl rounded-t-2xl flex flex-col modal-content relative">
+        <button onclick="closeProductModal()" class="absolute top-4 right-4 z-20 w-10 h-10 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center text-gray-800 shadow-sm hover:bg-white transition-colors">
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Main Image -->
+        <div class="relative w-full h-64 sm:h-80 bg-gray-100 flex-shrink-0 sm:rounded-t-2xl overflow-hidden">
+            <img id="pm-main-img" src="" class="w-full h-full object-cover transition-opacity duration-300">
+            <div id="pm-fallback" class="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-red-50 to-white hidden">
+                <i data-lucide="image" class="w-16 h-16 text-gray-300"></i>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto pb-24 scrollbar-hide">
+            <!-- Thumbnails Gallery -->
+            <div id="pm-gallery" class="px-4 mt-4 flex gap-2 overflow-x-auto scrollbar-hide pb-2"></div>
+
+            <div class="p-5 sm:p-6">
+                <h2 id="pm-name" class="text-2xl font-bold text-gray-800 mb-2"></h2>
+                
+                <div class="flex items-center gap-3 mb-5">
+                    <span id="pm-category" class="px-2.5 py-1 bg-gray-100 text-gray-600 text-xs rounded-lg font-medium"></span>
+                    <div class="flex items-center gap-1 text-amber-500 text-sm font-bold bg-amber-50 px-2 py-0.5 rounded-md">
+                        <i data-lucide="star" class="w-3.5 h-3.5 fill-amber-500"></i>
+                        <span id="pm-rating">5.0</span>
+                    </div>
+                </div>
+
+                <p id="pm-desc" class="text-gray-500 text-sm leading-relaxed mb-6"></p>
+
+                <!-- Ingredientes Principais -->
+                <div id="pm-ingredients-section" class="mb-6 hidden">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2">Ingredientes</h3>
+                    <p id="pm-ingredients-list" class="text-gray-600 text-sm leading-relaxed"></p>
+                </div>
+
+                <!-- Adicionais -->
+                <div id="pm-extras-section" class="mb-8">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Adicionais</h3>
+                    <div id="pm-extras-container" class="space-y-3">
+                        <!-- Itens gerados via JS -->
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 mb-4">
+                    <h3 class="text-xs font-bold text-gray-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i data-lucide="store" class="w-4 h-4"></i> Informações do Restaurante
+                    </h3>
+                    <div class="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-gray-400">
+                                <i data-lucide="clock" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400">Entrega Estimada</p>
+                                <p class="font-medium text-gray-700" id="pm-delivery-time"></p>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm text-gray-400">
+                                <i data-lucide="bike" class="w-4 h-4"></i>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-400">Taxa de Entrega</p>
+                                <p class="font-medium text-gray-700" id="pm-delivery-fee-text"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add to Cart Footer -->
+        <div class="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 sm:p-5 shadow-[0_-10px_30px_rgba(0,0,0,0.08)] sm:rounded-b-2xl">
+            <div class="flex items-center gap-3 sm:gap-4 max-w-sm mx-auto sm:max-w-none">
+                <div class="flex items-center bg-gray-100 rounded-xl h-14 border border-gray-200">
+                    <button onclick="changePmQty(-1)" class="w-12 h-full flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-gray-100 rounded-l-xl transition-colors">
+                        <i data-lucide="minus" class="w-5 h-5"></i>
+                    </button>
+                    <span id="pm-qty" class="w-10 text-center font-bold text-gray-800 text-lg">1</span>
+                    <button onclick="changePmQty(1)" class="w-12 h-full flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-gray-100 rounded-r-xl transition-colors">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <button id="pm-add-btn" onclick="addPmToCart()" class="flex-1 h-14 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold flex items-center justify-between px-5 shadow-lg shadow-red-500/30 transition-all active:scale-[0.98]">
+                    <span>Adicionar</span>
+                    <span id="pm-total" class="bg-white/20 px-3 py-1.5 rounded-lg text-sm tracking-wide"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -150,13 +263,19 @@
         return url;
     }
 
+    let restaurantData = null;
+    let currentProduct = null;
+    let pmQuantity = 1;
+    let selectedExtras = [];
+
     function renderProductCard(p) {
         const imgUrl = getImageUrl(p.imagem_url);
         const priceFormatted = formatMoney(p.preco || 0);
+        const pJson = JSON.stringify(p).replace(/"/g, '&quot;').replace(/'/g, "&#39;");
 
         return `
-            <div class="product-card rounded-2xl overflow-hidden flex flex-col h-full fade-in relative group">
-                <div class="product-img h-44 bg-gray-100 relative overflow-hidden flex-shrink-0 cursor-pointer" onclick="window.location.href='/restaurante/${p.restaurante_slug || p.restaurant_slug}/'">
+            <div class="product-card rounded-2xl overflow-hidden flex flex-col h-full fade-in relative group cursor-pointer" onclick="openProductModal(${pJson})">
+                <div class="product-img h-44 bg-gray-100 relative overflow-hidden flex-shrink-0">
                     ${imgUrl
                         ? `<img src="${imgUrl}" alt="${p.nome}" class="w-full h-full object-cover"
                                 onerror="this.parentElement.innerHTML='<div class=\\'product-fallback w-full h-full flex items-center justify-center\\'><i data-lucide=\\'image\\' class=\\'w-12 h-12 text-gray-300\\'></i></div>'; lucide.createIcons();">`
@@ -170,7 +289,7 @@
                     }
                 </div>
                 <div class="p-5 flex flex-col flex-grow">
-                    <a href="/restaurante/${p.restaurante_slug || p.restaurant_slug}/" class="text-xs text-red-500 font-medium mb-1.5 hover:underline truncate flex items-center gap-1">
+                    <a href="/restaurante/${p.restaurante_slug || p.restaurant_slug}/" onclick="event.stopPropagation()" class="text-xs text-red-500 font-medium mb-1.5 hover:underline truncate flex items-center gap-1">
                         <i data-lucide="store" class="w-3.5 h-3.5"></i> ${p.restaurante_nome}
                     </a>
                     <h3 class="font-bold text-gray-800 text-lg mb-2 line-clamp-2">${p.nome}</h3>
@@ -178,9 +297,9 @@
                     <div class="flex items-center justify-between mt-auto pt-3 border-t border-gray-100">
                         <span class="text-xl font-extrabold text-red-500">${priceFormatted}</span>
                         <button
-                            onclick='addToCart(${JSON.stringify({id: p.id, nome: p.nome, preco: parseFloat(p.preco || 0), image_url: p.imagem_url}).replace(/"/g, "&quot;").replace(/'/g, "&#39;")}, "${p.restaurante_id}", "${(p.restaurante_nome || "").replace(/'/g, "&#39;")}")'
+                            onclick='event.stopPropagation(); addToCart(${JSON.stringify({id: p.id, nome: p.nome, preco: parseFloat(p.preco || 0), image_url: p.imagem_url}).replace(/"/g, "&quot;").replace(/'/g, "&#39;")}, "${p.restaurante_id}", "${(p.restaurante_nome || "").replace(/'/g, "&#39;")}")'
                             class="add-btn btn-primary px-3 py-2 rounded-xl text-sm text-white font-medium flex items-center gap-2 shadow-md shadow-red-500/20 transition-all hover:scale-105 active:scale-95"
-                            ${p.esta_disponivel === false ? 'disabled style="opacidade: 0.4; cursor: not-allowed; pointer-events: none;"' : ''}
+                            ${p.esta_disponivel === false ? 'disabled style="opacity: 0.4; cursor: not-allowed; pointer-events: none;"' : ''}
                         >
                             <i data-lucide="plus" class="w-4 h-4"></i> Adicionar
                         </button>
@@ -192,6 +311,173 @@
 
     function addToCart(product, restaurantId, restaurantName) {
         Cart.add(product, restaurantId, restaurantName);
+    }
+
+    // Modal Functions
+    function openProductModal(p) {
+        if (p.esta_disponivel === false) { showToast('Este produto está esgotado', 'warning'); return; }
+        
+        currentProduct = p;
+        pmQuantity = 1;
+        selectedExtras = []; // Limpa extras ao abrir
+        
+        // Populating basic data
+        document.getElementById('pm-name').textContent = p.nome;
+        document.getElementById('pm-desc').textContent = p.descricao || 'Sem descrição detalhada.';
+        
+        const ingSection = document.getElementById('pm-ingredients-section');
+        const ingList = document.getElementById('pm-ingredients-list');
+        if (p.ingredientes_principais) {
+            ingList.textContent = p.ingredientes_principais;
+            ingSection.classList.remove('hidden');
+        } else {
+            ingSection.classList.add('hidden');
+        }
+        
+        const cats = { entrada: 'Entrada', principal: 'Prato Principal', sobremesa: 'Sobremesa', bebida: 'Bebida', combo: 'Combo' };
+        document.getElementById('pm-category').textContent = cats[p.categoria] || p.categoria;
+        
+        // Adicionais
+        const extrasContainer = document.getElementById('pm-extras-container');
+        extrasContainer.innerHTML = '';
+        if (p.adicionais && p.adicionais.length > 0) {
+            document.getElementById('pm-extras-section').classList.remove('hidden');
+            p.adicionais.forEach((ing, idx) => {
+                extrasContainer.innerHTML += `
+                    <label class="flex items-center justify-between p-4 rounded-2xl bg-gray-50 border border-transparent hover:border-red-200 cursor-pointer transition-all group">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" onchange="toggleExtra('${ing.nome}', ${ing.preco}, this.checked)" class="w-5 h-5 rounded-lg text-red-500 border-gray-300 focus:ring-red-500">
+                            <span class="text-sm font-medium text-gray-700">${ing.nome}</span>
+                        </div>
+                        <span class="text-sm font-bold text-red-500">+ ${formatMoney(ing.preco)}</span>
+                    </label>
+                `;
+            });
+        } else {
+            document.getElementById('pm-extras-section').classList.add('hidden');
+        }
+
+        // Restaurant details
+        restaurantData = {
+            id: p.restaurante_id,
+            nome: p.restaurante_nome,
+            slug: p.restaurante_slug,
+            taxa_entrega: p.taxa_entrega,
+            tempo_entrega_estimado: p.tempo_entrega_estimado,
+            avaliacao: p.avaliacao
+        };
+
+        const r = restaurantData;
+        document.getElementById('pm-delivery-time').textContent = r.tempo_entrega_estimado || '40-50 min';
+        const deliveryFee = r.taxa_entrega > 0 ? formatMoney(r.taxa_entrega) : 'Entrega Grátis';
+        document.getElementById('pm-delivery-fee-text').textContent = deliveryFee;
+        document.getElementById('pm-rating').textContent = (r.avaliacao?.media || 5.0).toFixed(1);
+        
+        // Images / Gallery
+        const gallery = document.getElementById('pm-gallery');
+        const mainImg = document.getElementById('pm-main-img');
+        const fallback = document.getElementById('pm-fallback');
+        
+        // Extract all unique image URLs
+        let allImages = [];
+        if (p.imagens && p.imagens.length > 0) allImages = p.imagens.map(getImageUrl).filter(Boolean);
+        else if (p.imagem_url) allImages = [getImageUrl(p.imagem_url)].filter(Boolean);
+        
+        gallery.innerHTML = '';
+        if (allImages.length > 0) {
+            mainImg.src = allImages[0];
+            mainImg.classList.remove('hidden');
+            fallback.classList.add('hidden');
+            
+            if (allImages.length > 1) {
+                allImages.forEach((url, i) => {
+                    gallery.innerHTML += `<img src="${url}" onclick="changePmImage('${url}', this)" class="gallery-thumb w-20 h-20 rounded-xl object-cover cursor-pointer flex-shrink-0 shadow-sm ${i === 0 ? 'active' : ''}">`;
+                });
+                gallery.classList.remove('hidden');
+            } else {
+                gallery.classList.add('hidden');
+            }
+        } else {
+            mainImg.classList.add('hidden');
+            fallback.classList.remove('hidden');
+            gallery.classList.add('hidden');
+        }
+
+        updatePmTotal();
+        
+        const modal = document.getElementById('product-modal');
+        const content = document.getElementById('product-modal-content');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        
+        // Trigger animation
+        requestAnimationFrame(() => {
+            modal.classList.add('active');
+            content.classList.add('active');
+        });
+        lucide.createIcons();
+    }
+
+    function toggleExtra(nome, preco, isChecked) {
+        if (isChecked) {
+            selectedExtras.push({ nome, preco });
+        } else {
+            selectedExtras = selectedExtras.filter(e => e.nome !== nome);
+        }
+        updatePmTotal();
+    }
+
+    function changePmImage(url, el) {
+        const mainImg = document.getElementById('pm-main-img');
+        mainImg.style.opacity = '0.5';
+        setTimeout(() => {
+            mainImg.src = url;
+            mainImg.style.opacity = '1';
+        }, 150);
+        
+        document.querySelectorAll('.gallery-thumb').forEach(thumb => thumb.classList.remove('active'));
+        if(el) el.classList.add('active');
+    }
+
+    function closeProductModal() {
+        const modal = document.getElementById('product-modal');
+        const content = document.getElementById('product-modal-content');
+        modal.classList.remove('active');
+        content.classList.remove('active');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            currentProduct = null;
+        }, 300);
+    }
+
+    function changePmQty(delta) {
+        pmQuantity += delta;
+        if (pmQuantity < 1) pmQuantity = 1;
+        if (currentProduct.estoque !== -1 && pmQuantity > currentProduct.estoque) {
+            pmQuantity = currentProduct.estoque;
+            showToast('Estoque máximo atingido', 'warning');
+        }
+        document.getElementById('pm-qty').textContent = pmQuantity;
+        updatePmTotal();
+    }
+
+    function updatePmTotal() {
+        if (!currentProduct) return;
+        const basePrice = currentProduct.preco || 0;
+        const extrasTotal = selectedExtras.reduce((sum, item) => sum + item.preco, 0);
+        const total = (basePrice + extrasTotal) * pmQuantity;
+        
+        document.getElementById('pm-total').textContent = formatMoney(total);
+        document.getElementById('pm-qty').textContent = pmQuantity;
+    }
+
+    function addPmToCart() {
+        if (!currentProduct) return;
+        for(let i=0; i<pmQuantity; i++) {
+            Cart.add(currentProduct, restaurantData.id, restaurantData.nome, selectedExtras);
+        }
+        closeProductModal();
     }
 
     async function loadProducts() {

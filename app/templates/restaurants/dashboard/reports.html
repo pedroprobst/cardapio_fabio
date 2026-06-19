@@ -154,7 +154,13 @@
             empty.classList.add('hidden');
             pagination.classList.remove('hidden');
 
-            tbody.innerHTML = data.results.map(o => `
+            tbody.innerHTML = data.results.map(o => {
+                let sub = o.sub_pedidos && o.sub_pedidos.find(sp => sp.restaurante_id === rid);
+                let itens = sub ? sub.itens : (o.itens || []);
+                let status = sub ? sub.status : o.status;
+                let total = sub ? sub.total : o.total;
+
+                return `
                 <tr class="border-b border-gray-200 hover:bg-gray-50 transition-colors">
                     <td class="px-5 py-3">
                         <span class="text-sm font-medium text-red-500">${o.numero_pedido}</span>
@@ -163,19 +169,19 @@
                         <span class="text-sm text-gray-500">${new Date(o.criado_em).toLocaleDateString('pt-BR')} ${new Date(o.criado_em).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'})}</span>
                     </td>
                     <td class="px-5 py-3">
-                        <span class="px-2 py-1 rounded-lg text-xs font-medium ${SC[o.status]}">${SL[o.status]}</span>
+                        <span class="px-2 py-1 rounded-lg text-xs font-medium ${SC[status]}">${SL[status]}</span>
                     </td>
                     <td class="px-5 py-3">
-                        <span class="text-sm font-medium text-gray-700">${formatMoney(o.total)}</span>
+                        <span class="text-sm font-medium text-gray-700">${formatMoney(total)}</span>
                     </td>
                     <td class="px-5 py-3 hidden md:table-cell">
-                        <span class="text-sm text-gray-500">${o.itens.length} ite${o.itens.length > 1 ? 'ns' : 'm'}</span>
+                        <span class="text-sm text-gray-500">${itens.length} ite${itens.length > 1 ? 'ns' : 'm'}</span>
                     </td>
                     <td class="px-5 py-3 hidden lg:table-cell">
                         <span class="text-sm text-gray-500">${o.metodo_entrega === 'entrega' ? '🛵 Entrega' : '🏪 Retirada'}</span>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
 
             // Pagination controls
             document.getElementById('page-info').textContent = `Página ${currentPage} de ${totalPages} (${data.count} pedidos)`;

@@ -189,10 +189,10 @@ class ProductListView(APIView):
         else:
             data = request.data.copy()
 
-        # Garante que se ingredientes vier como string JSON (comum em FormData), seja convertido em lista
-        if 'ingredientes' in data and isinstance(data['ingredientes'], str):
+        # Garante que se adicionais vier como string JSON (comum em FormData), seja convertido em lista
+        if 'adicionais' in data and isinstance(data['adicionais'], str):
             try:
-                data['ingredientes'] = json.loads(data['ingredientes'])
+                data['adicionais'] = json.loads(data['adicionais'])
             except json.JSONDecodeError:
                 pass
         # --------------------------------
@@ -239,9 +239,9 @@ class ProductDetailView(APIView):
         else:
             data = request.data.copy()
 
-        if 'ingredientes' in data and isinstance(data['ingredientes'], str):
+        if 'adicionais' in data and isinstance(data['adicionais'], str):
             try:
-                data['ingredientes'] = json.loads(data['ingredientes'])
+                data['adicionais'] = json.loads(data['adicionais'])
             except json.JSONDecodeError:
                 pass
         # --------------------------------

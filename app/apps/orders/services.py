@@ -9,6 +9,7 @@ Refatorado para usar:
 - ValidadorCupom (DRY)
 - Exceções de domínio
 - Injeção de dependência
+- SubPedido unificado (todo pedido usa sub_pedidos[])
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ from apps.core.enums import StatusPedido, MetodoEntrega
 from apps.core.exceptions import InvalidStatusTransition, ResourceNotFoundError
 from apps.core.utils import gerar_numero_pedido, sanitize_input
 from apps.core.validators import CouponValidator
-from apps.orders.documents import Pedido, ItemPedido, MudancaStatus, EnderecoEntrega
+from apps.orders.documents import Pedido, ItemPedido, SubPedido, MudancaStatus, EnderecoEntrega
 from apps.orders.repositories import RepositorioPedido
 from apps.restaurants.documents import Restaurante
 from apps.restaurants.repositories import RepositorioRestaurante
@@ -43,208 +44,127 @@ class ServicoPedido:
         self.repo_pedido = repo_pedido or RepositorioPedido()
         self.repo_restaurante = repo_restaurante or RepositorioRestaurante()
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Criação de pedidos (unificada via sub_pedidos)
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     def criar_pedido(self, cliente_id: str, dados: dict) -> dict:
+        """Cria um pedido — sempre como sub_pedidos[], mesmo com 1 restaurante."""
+
+        # Normalizar: se veio no formato individual, converter para lista
         if 'pedidos' in dados and dados['pedidos']:
-            # Multi-restaurant checkout: registrar tudo em um UNICO documento
-            from apps.orders.documents import SubPedido
-            sub_pedidos_list = []
-            todos_itens = []
-            total_geral = Decimal('0.00')
-            taxa_entrega_geral = Decimal('0.00')
-            desconto_geral = Decimal('0.00')
-            
-            for sub_dados in dados['pedidos']:
-                restaurante = self.repo_restaurante.buscar_ativo_por_id(sub_dados['restaurante_id'])
-                if not restaurante:
+            lista_restaurantes = dados['pedidos']
+        else:
+            # Formato legado individual → converter para formato multi
+            lista_restaurantes = [{
+                'restaurante_id': dados['restaurante_id'],
+                'itens': dados['itens'],
+                'codigo_cupom': dados.get('codigo_cupom', ''),
+            }]
+
+        sub_pedidos_list = []
+        total_geral = Decimal('0.00')
+        taxa_entrega_geral = Decimal('0.00')
+        desconto_geral = Decimal('0.00')
+
+        for sub_dados in lista_restaurantes:
+            restaurante = self.repo_restaurante.buscar_ativo_por_id(sub_dados['restaurante_id'])
+            if not restaurante:
+                continue
+
+            # Processar itens do sub-pedido
+            mapa_produtos = {str(p._id): p for p in restaurante.produtos}
+            itens_pedido = []
+            subtotal_pedido = Decimal('0.00')
+
+            for item_dados in sub_dados['itens']:
+                produto = mapa_produtos.get(item_dados['prato_id'])
+                if not produto or not produto.esta_disponivel:
                     continue
-                
-                # Processar itens do sub-pedido
-                mapa_produtos = {str(p._id): p for p in restaurante.produtos}
-                itens_pedido = []
-                subtotal_pedido = Decimal('0.00')
-                
-                for item_dados in sub_dados['itens']:
-                    produto = mapa_produtos.get(item_dados['produto_id'])
-                    if not produto or not produto.esta_disponivel:
-                        continue
-                    
-                    preco_unitario_final = Decimal(str(produto.preco))
-                    extras_selecionados = item_dados.get('extras', [])
-                    extras_para_salvar = []
-                    
-                    for extra in extras_selecionados:
-                        nome_extra = str(extra.get('nome', '')).strip().lower()
-                        ing_original = next(
-                            (i for i in produto.ingredientes if i.nome.strip().lower() == nome_extra), 
-                            None
-                        )
-                        
-                        valor_extra = Decimal('0.00')
-                        if ing_original:
-                            valor_extra = Decimal(str(ing_original.preco))
-                        else:
-                            valor_extra = Decimal(str(extra.get('preco', 0)))
 
-                        preco_unitario_final += valor_extra
-                        extras_para_salvar.append({
-                            'nome': ing_original.nome if ing_original else extra.get('nome'),
-                            'preco': float(valor_extra)
-                        })
+                # Inicia com o preço base do produto
+                preco_unitario_final = Decimal(str(produto.preco))
+                extras_selecionados = item_dados.get('extras', [])
+                extras_para_salvar = []
 
-                    quantidade = int(item_dados.get('quantidade', 1))
-                    subtotal_item = preco_unitario_final * quantidade
-                    
-                    item_obj = ItemPedido(
-                        produto_id=ObjectId(item_dados['produto_id']),
-                        nome=produto.nome,
-                        preco=preco_unitario_final,
-                        quantidade=quantidade,
-                        subtotal=subtotal_item,
-                        imagem_url=produto.imagem_url,
-                        extras=extras_para_salvar
+                for extra in extras_selecionados:
+                    # Normalização para busca: remove espaços e ignora case
+                    nome_extra = str(extra.get('nome', '')).strip().lower()
+
+                    # Busca o ingrediente original no banco para validar o preço real
+                    ing_original = next(
+                        (i for i in produto.adicionais if i.nome.strip().lower() == nome_extra),
+                        None
                     )
-                    itens_pedido.append(item_obj)
-                    todos_itens.append(item_obj)
-                    subtotal_pedido += subtotal_item
-                
-                # Calcular taxas e descontos do sub-pedido
-                taxa_entrega = Decimal(str(restaurante.taxa_entrega or 0)) if dados['metodo_entrega'] == 'entrega' else Decimal('0')
-                valor_desconto, codigo_cupom = CouponValidator.validate_and_calculate(
-                    coupon_code=sub_dados.get('codigo_cupom', ''),
-                    coupons=restaurante.cupons,
-                    cart_total=subtotal_pedido,
-                )
-                
-                sub_total_final = subtotal_pedido + taxa_entrega - valor_desconto
-                
-                sub_pedidos_list.append(SubPedido(
-                    restaurante_id=ObjectId(sub_dados['restaurante_id']),
-                    itens=itens_pedido,
-                    total=sub_total_final,
-                    taxa_entrega=taxa_entrega,
-                    valor_desconto=valor_desconto,
-                    codigo_cupom=codigo_cupom,
-                    status=StatusPedido.PENDENTE,
-                    historico_status=[MudancaStatus(
-                        status=StatusPedido.PENDENTE,
-                        alterado_em=datetime.now(timezone.utc),
-                        alterado_por=ObjectId(cliente_id),
-                    )]
-                ))
-                
-                total_geral += sub_total_final
-                taxa_entrega_geral += taxa_entrega
-                desconto_geral += valor_desconto
 
-            pedido = Pedido(
-                numero_pedido=gerar_numero_pedido(),
-                cliente_id=ObjectId(cliente_id),
-                restaurante_id=None,
-                itens=todos_itens,
-                sub_pedidos=sub_pedidos_list,
-                total=total_geral,
-                taxa_entrega=taxa_entrega_geral,
-                valor_desconto=desconto_geral,
-                metodo_pagamento=dados.get('metodo_pagamento', 'pix'),
+                    valor_extra = Decimal('0.00')
+                    if ing_original:
+                        valor_extra = Decimal(str(ing_original.preco))
+                    else:
+                        # Fallback de segurança caso o ingrediente tenha sido removido do cardápio após ir pro carrinho
+                        valor_extra = Decimal(str(extra.get('preco', 0)))
+
+                    preco_unitario_final += valor_extra
+                    extras_para_salvar.append({
+                        'nome': ing_original.nome if ing_original else extra.get('nome'),
+                        'preco': float(valor_extra)
+                    })
+
+                quantidade = int(item_dados.get('quantidade', 1))
+                subtotal_item = preco_unitario_final * quantidade
+
+                itens_pedido.append(ItemPedido(
+                    prato_id=ObjectId(item_dados['prato_id']),
+                    nome=produto.nome,
+                    preco=preco_unitario_final,
+                    quantidade=quantidade,
+                    subtotal=subtotal_item,
+                    imagem_url=produto.imagem_url,
+                    extras=extras_para_salvar
+                ))
+                subtotal_pedido += subtotal_item
+
+            if not itens_pedido:
+                continue
+
+            # Calcular taxas e descontos do sub-pedido
+            taxa_entrega = Decimal(str(restaurante.taxa_entrega or 0)) if dados['metodo_entrega'] == 'entrega' else Decimal('0')
+            valor_desconto, codigo_cupom = CouponValidator.validate_and_calculate(
+                coupon_code=sub_dados.get('codigo_cupom', ''),
+                coupons=restaurante.cupons,
+                cart_total=subtotal_pedido,
+            )
+
+            sub_total_final = subtotal_pedido + taxa_entrega - valor_desconto
+
+            sub_pedidos_list.append(SubPedido(
+                restaurante_id=ObjectId(sub_dados['restaurante_id']),
+                itens=itens_pedido,
+                total=sub_total_final,
+                taxa_entrega=taxa_entrega,
+                valor_desconto=valor_desconto,
+                codigo_cupom=codigo_cupom,
                 status=StatusPedido.PENDENTE,
                 historico_status=[MudancaStatus(
                     status=StatusPedido.PENDENTE,
                     alterado_em=datetime.now(timezone.utc),
                     alterado_por=ObjectId(cliente_id),
-                )],
-                metodo_entrega=dados['metodo_entrega'],
-                endereco_entrega=dados.get('endereco_entrega') if dados['metodo_entrega'] == 'entrega' else None,
-                observacoes=dados.get('observacoes', ''),
-            )
-            
-            self.repo_pedido.salvar(pedido)
-            return {
-                'multi': True,
-                'pedido': pedido.to_dict(),
-                'numero_pedido': pedido.numero_pedido
-            }
-        else:
-            # Single order
-            return self._criar_pedido_individual(cliente_id, dados)
-
-    def _criar_pedido_individual(self, cliente_id: str, dados: dict) -> dict:
-        restaurante = self.repo_restaurante.buscar_ativo_por_id(dados['restaurante_id'])
-        if not restaurante:
-            raise ResourceNotFoundError('Restaurante')
-
-        mapa_produtos = {str(p._id): p for p in restaurante.produtos}
-        itens_pedido = []
-        subtotal_pedido = Decimal('0.00')
-
-        for item_dados in dados['itens']:
-            produto = mapa_produtos.get(item_dados['produto_id'])
-            if not produto or not produto.esta_disponivel:
-                continue
-
-            # Inicia com o preço base do produto
-            preco_unitario_final = Decimal(str(produto.preco))
-            extras_selecionados = item_dados.get('extras', [])
-            extras_para_salvar = []
-            
-            for extra in extras_selecionados:
-                # Normalização para busca: remove espaços e ignora case
-                nome_extra = str(extra.get('nome', '')).strip().lower()
-                
-                # Busca o ingrediente original no banco para validar o preço real
-                ing_original = next(
-                    (i for i in produto.ingredientes if i.nome.strip().lower() == nome_extra), 
-                    None
-                )
-                
-                valor_extra = Decimal('0.00')
-                if ing_original:
-                    valor_extra = Decimal(str(ing_original.preco))
-                else:
-                    # Fallback de segurança caso o ingrediente tenha sido removido do cardápio após ir pro carrinho
-                    valor_extra = Decimal(str(extra.get('preco', 0)))
-
-                preco_unitario_final += valor_extra
-                extras_para_salvar.append({
-                    'nome': ing_original.nome if ing_original else extra.get('nome'),
-                    'preco': float(valor_extra)
-                })
-
-            quantidade = int(item_dados.get('quantidade', 1))
-            subtotal_item = preco_unitario_final * quantidade
-
-            # Criando o Snapshot do Item com o PREÇO FINAL JÁ SOMADO
-            itens_pedido.append(ItemPedido(
-                produto_id=ObjectId(item_dados['produto_id']),
-                nome=produto.nome,
-                preco=preco_unitario_final, # Este é o campo que deve ser R$ 28,99
-                quantidade=quantidade,
-                subtotal=subtotal_item,
-                imagem_url=produto.imagem_url,
-                extras=extras_para_salvar
+                )]
             ))
-            subtotal_pedido += subtotal_item
 
-        # Taxa de entrega e descontos...
-        taxa_entrega = Decimal(str(restaurante.taxa_entrega or 0)) if dados['metodo_entrega'] == 'entrega' else Decimal('0')
-        
-        # (Lógica de cupom omitida para brevidade, mas mantida no seu original)
-        valor_desconto, codigo_cupom = CouponValidator.validate_and_calculate(
-            coupon_code=dados.get('codigo_cupom', ''),
-            coupons=restaurante.cupons,
-            cart_total=subtotal_pedido,
-        )
+            total_geral += sub_total_final
+            taxa_entrega_geral += taxa_entrega
+            desconto_geral += valor_desconto
 
-        total_final = subtotal_pedido + taxa_entrega - valor_desconto
+        if not sub_pedidos_list:
+            raise ResourceNotFoundError('Restaurante')
 
         pedido = Pedido(
             numero_pedido=gerar_numero_pedido(),
             cliente_id=ObjectId(cliente_id),
-            restaurante_id=ObjectId(dados['restaurante_id']),
-            itens=itens_pedido,
-            total=total_final,
-            taxa_entrega=taxa_entrega,
-            valor_desconto=valor_desconto,
-            codigo_cupom=codigo_cupom,
+            sub_pedidos=sub_pedidos_list,
+            total=total_geral,
+            taxa_entrega=taxa_entrega_geral,
+            valor_desconto=desconto_geral,
             metodo_pagamento=dados.get('metodo_pagamento', 'pix'),
             status=StatusPedido.PENDENTE,
             historico_status=[MudancaStatus(
@@ -256,27 +176,26 @@ class ServicoPedido:
             endereco_entrega=dados.get('endereco_entrega') if dados['metodo_entrega'] == 'entrega' else None,
             observacoes=dados.get('observacoes', ''),
         )
-        
+
         self.repo_pedido.salvar(pedido)
-        return pedido.to_dict()
 
-    def atualizar_status(
-        self,
-        pedido_id: str,
-        novo_status: str,
-        alterado_por: str,
-        motivo: str | None = None,
-    ) -> dict:
-        """
-        Atualiza o status do pedido seguindo a máquina de estados.
+        # Notificar cada restaurante via WebSocket
+        for sp in sub_pedidos_list:
+            self._notificar_restaurante(str(sp.restaurante_id), pedido.to_dict())
 
-        Transições válidas são definidas em StatusPedido.transicoes_validas().
-        """
-        pedido = self.repo_pedido.buscar_por_id(pedido_id)
-        if not pedido:
-            raise ResourceNotFoundError('Pedido')
+        is_multi = len(sub_pedidos_list) > 1
+        if is_multi:
+            return {
+                'multi': True,
+                'pedido': pedido.to_dict(),
+                'numero_pedido': pedido.numero_pedido,
+            }
+        else:
+            return pedido.to_dict()
 
-        # Validar transição usando enum
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Atualização de status
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     def atualizar_status(
         self,
         pedido_id: str,
@@ -285,23 +204,30 @@ class ServicoPedido:
         motivo: str | None = None,
         restaurante_id: str | None = None,
     ) -> dict:
+        """
+        Atualiza o status do pedido seguindo a máquina de estados.
+
+        Se restaurante_id é fornecido, atualiza apenas o sub-pedido daquele
+        restaurante. Caso contrário, atualiza todos os sub-pedidos (ex: cancelamento pelo cliente).
+        """
         pedido = self.repo_pedido.buscar_por_id(pedido_id)
         if not pedido:
             raise ResourceNotFoundError('Pedido')
 
-        # Se for um pedido multi-restaurante
-        if pedido.sub_pedidos:
+        sub_pedidos = pedido.get_sub_pedidos()
+
+        if sub_pedidos:
             if restaurante_id:
                 # Atualização feita pelo dono do restaurante para sua parte do pedido
                 sub = next((sp for sp in pedido.sub_pedidos if str(sp.restaurante_id) == restaurante_id), None)
                 if not sub:
                     raise ResourceNotFoundError('Sub-pedido do restaurante')
-                
+
                 # Validar transição usando a máquina de estados
                 atual = StatusPedido(sub.status)
                 if not atual.pode_transitar_para(novo_status):
                     raise InvalidStatusTransition(sub.status, novo_status)
-                
+
                 sub.status = novo_status
                 sub.historico_status.append(MudancaStatus(
                     status=novo_status,
@@ -319,7 +245,7 @@ class ServicoPedido:
                             alterado_em=datetime.now(timezone.utc),
                             alterado_por=ObjectId(alterado_por),
                         ))
-            
+
             # Atualizar o status principal do Pedido baseado no estado combinado dos sub-pedidos
             statuses = [sp.status for sp in pedido.sub_pedidos]
             if all(s == StatusPedido.CANCELADO for s in statuses):
@@ -334,27 +260,27 @@ class ServicoPedido:
                 pedido.status = StatusPedido.CONFIRMADO
             else:
                 pedido.status = statuses[0]
-                
+
             pedido.historico_status.append(MudancaStatus(
                 status=pedido.status,
                 alterado_em=datetime.now(timezone.utc),
                 alterado_por=ObjectId(alterado_por),
             ))
-            
+
             if novo_status == StatusPedido.CANCELADO and motivo:
                 pedido.observacoes = f"{pedido.observacoes}\n[CANCELAMENTO]: {sanitize_input(motivo)}".strip()
-                
+
             self.repo_pedido.salvar(pedido)
-            
-            logger.info("Pedido multi %s status atualizado para %s", pedido.numero_pedido, pedido.status)
+
+            logger.info("Pedido %s status atualizado para %s", pedido.numero_pedido, pedido.status)
             self._notificar_cliente(str(pedido.id), pedido.to_dict())
-            
+
             pedido_dict = pedido.to_dict()
             if restaurante_id:
                 self._filtrar_pedido_para_restaurante(pedido_dict, restaurante_id)
             return pedido_dict
         else:
-            # Pedido de restaurante único (legado)
+            # Pedido legado sem sub_pedidos (antigo, sem migração ainda)
             atual = StatusPedido(pedido.status)
             if not atual.pode_transitar_para(novo_status):
                 raise InvalidStatusTransition(pedido.status, novo_status)
@@ -376,22 +302,16 @@ class ServicoPedido:
 
             return pedido.to_dict()
 
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    # Consultas
+    # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     def buscar_pedido(self, pedido_id: str) -> dict | None:
         """Busca um pedido por ID."""
         pedido = self.repo_pedido.buscar_por_id(pedido_id)
         if not pedido:
             return None
         pedido_dict = pedido.to_dict()
-        if pedido_dict.get('sub_pedidos'):
-            nomes = []
-            for sp in pedido_dict['sub_pedidos']:
-                restaurante = self.repo_restaurante.find_by_id(sp['restaurante_id'])
-                if restaurante:
-                    nomes.append(restaurante.nome)
-            pedido_dict['restaurante_nome'] = " + ".join(nomes) if nomes else "Multi-Restaurante"
-        else:
-            restaurante = self.repo_restaurante.find_by_id(str(pedido.restaurante_id))
-            pedido_dict['restaurante_nome'] = restaurante.nome if restaurante else 'Restaurante'
+        self._enriquecer_nome_restaurante(pedido_dict)
         return pedido_dict
 
     def buscar_pedido_por_numero(self, numero_pedido: str) -> dict | None:
@@ -400,49 +320,33 @@ class ServicoPedido:
         if not pedido:
             return None
         pedido_dict = pedido.to_dict()
+        self._enriquecer_nome_restaurante(pedido_dict)
+        return pedido_dict
+
+    def _enriquecer_nome_restaurante(self, pedido_dict: dict) -> None:
+        """Adiciona restaurante_nome ao pedido, buscando do repositório."""
         if pedido_dict.get('sub_pedidos'):
             nomes = []
             for sp in pedido_dict['sub_pedidos']:
                 restaurante = self.repo_restaurante.find_by_id(sp['restaurante_id'])
-                if restaurante:
-                    nomes.append(restaurante.nome)
+                nome = restaurante.nome if restaurante else 'Restaurante'
+                sp['restaurante_nome'] = nome
+                nomes.append(nome)
             pedido_dict['restaurante_nome'] = " + ".join(nomes) if nomes else "Multi-Restaurante"
-        else:
-            restaurante = self.repo_restaurante.find_by_id(str(pedido.restaurante_id))
+        elif pedido_dict.get('restaurante_id'):
+            restaurante = self.repo_restaurante.find_by_id(str(pedido_dict['restaurante_id']))
             pedido_dict['restaurante_nome'] = restaurante.nome if restaurante else 'Restaurante'
-        return pedido_dict
+        else:
+            pedido_dict['restaurante_nome'] = 'Restaurante'
 
     def listar_pedidos_cliente(self, cliente_id: str, pagina: int = 1, tamanho_pagina: int = 10) -> dict:
         """Lista pedidos de um cliente."""
         resultado = self.repo_pedido.buscar_por_cliente(cliente_id, pagina=pagina, tamanho_pagina=tamanho_pagina)
         pedidos_dict = resultado.to_dict()
-        
-        # Obter IDs únicos de restaurantes e buscar seus nomes
-        restaurantes_ids = set()
+
         for p in pedidos_dict['results']:
-            if p.get('sub_pedidos'):
-                for sp in p['sub_pedidos']:
-                    restaurantes_ids.add(sp['restaurante_id'])
-            elif p.get('restaurante_id'):
-                restaurantes_ids.add(p['restaurante_id'])
-                
-        mapa_restaurantes = {}
-        for rid in restaurantes_ids:
-            restaurante = self.repo_restaurante.find_by_id(rid)
-            if restaurante:
-                mapa_restaurantes[rid] = restaurante.nome
-                
-        for p in pedidos_dict['results']:
-            if p.get('sub_pedidos'):
-                nomes = []
-                for sp in p['sub_pedidos']:
-                    nome = mapa_restaurantes.get(sp['restaurante_id'])
-                    if nome:
-                        nomes.append(nome)
-                p['restaurante_nome'] = " + ".join(nomes) if nomes else "Multi-Restaurante"
-            else:
-                p['restaurante_nome'] = mapa_restaurantes.get(p['restaurante_id'], 'Restaurante')
-            
+            self._enriquecer_nome_restaurante(p)
+
         return pedidos_dict
 
     def listar_pedidos_restaurante(

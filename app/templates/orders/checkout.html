@@ -409,7 +409,7 @@
             payload = {
                 restaurante_id: r.id,
                 itens: r.items.map(i => ({
-                    produto_id: i.product_id,
+                    prato_id: i.product_id,
                     quantidade: i.quantity,
                     nome: i.nome,
                     preco: parseFloat(i.preco),
@@ -427,7 +427,7 @@
                     return {
                         restaurante_id: r.id,
                         itens: r.items.map(i => ({
-                            produto_id: i.product_id,
+                            prato_id: i.product_id,
                             quantidade: i.quantity,
                             nome: i.nome,
                             preco: parseFloat(i.preco),

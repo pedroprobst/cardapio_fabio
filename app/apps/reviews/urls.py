@@ -6,4 +6,5 @@ app_name = 'reviews'
 
 urlpatterns = [
     path('', views.ReviewListView.as_view(), name='list'),
+    path('my-review/', views.MyReviewView.as_view(), name='my-review'),
 ]

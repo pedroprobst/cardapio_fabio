@@ -78,7 +78,12 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
 
         if search:
             pipeline.append({'$match': {
-                'pratos.nome': {'$regex': search, '$options': 'i'},
+                '$or': [
+                    {'pratos.nome': {'$regex': search, '$options': 'i'}},
+                    {'pratos.descricao': {'$regex': search, '$options': 'i'}},
+                    {'pratos.ingredientes_principais': {'$regex': search, '$options': 'i'}},
+                    {'pratos.adicionais.nome': {'$regex': search, '$options': 'i'}},
+                ]
             }})
 
         # Conta total de itens antes da paginação
@@ -101,12 +106,22 @@ class RepositorioRestaurante(BaseRepository[Restaurante]):
                 'imagem_url': {'$ifNull': ['$pratos.imagem_url', '']},
                 'imagens': {'$ifNull': ['$pratos.imagens', []]},
                 'esta_disponivel': '$pratos.esta_disponivel',
-                # AJUSTE AQUI: Transforma lista de objetos de ingredientes em lista de strings
-                'ingredientes': {
+                'ingredientes_principais': {'$ifNull': ['$pratos.ingredientes_principais', '']},
+                'estoque': {'$ifNull': ['$pratos.estoque', -1]},
+                'taxa_entrega': {'$toDouble': {'$ifNull': ['$taxa_entrega', 0]}},
+                'tempo_entrega_estimado': {'$ifNull': ['$tempo_entrega_estimado', '40-50 min']},
+                'avaliacao': {
+                    'media': {'$toDouble': {'$ifNull': ['$avaliacao.media', 0.0]}},
+                    'contagem': {'$toInt': {'$ifNull': ['$avaliacao.contagem', 0]}}
+                },
+                'adicionais': {
                     '$map': {
-                        'input': {'$ifNull': ['$pratos.ingredientes', []]},
+                        'input': {'$ifNull': ['$pratos.adicionais', []]},
                         'as': 'ing',
-                        'in': '$$ing.nome'
+                        'in': {
+                            'nome': '$$ing.nome',
+                            'preco': {'$toDouble': '$$ing.preco'}
+                        }
                     }
                 },
                 'restaurante_id': {'$toString': '$_id'},

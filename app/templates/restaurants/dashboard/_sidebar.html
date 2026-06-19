@@ -1,11 +1,11 @@
 <!-- Dashboard Sidebar Navigation -->
 <aside id="dashboard-sidebar" class="hidden lg:flex flex-col w-64 min-h-[calc(100vh-4rem)] bg-white border-r border-gray-100">
-    <!-- Restaurant Selector -->
+    <!-- Restaurant Display -->
     <div class="p-4 border-b border-gray-100">
-        <label class="block text-xs text-gray-400 mb-1.5 font-medium uppercase tracking-wider">Restaurante</label>
-        <select id="global-restaurant-select" onchange="DashboardNav.onRestaurantChange()" class="w-full px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 text-sm outline-none transition-colors">
-            <option>Carregando...</option>
-        </select>
+        <label class="block text-xs text-gray-400 mb-0.5 font-medium uppercase tracking-wider">Restaurante</label>
+        <div id="global-restaurant-display" class="text-gray-800 text-lg font-bold truncate">
+            Carregando...
+        </div>
     </div>
 
     <!-- Nav Links -->
@@ -102,9 +102,9 @@
             try {
                 const res = await API.get('/api/restaurants/mine/');
                 this.restaurants = await res.json();
-                const select = document.getElementById('global-restaurant-select');
+                const display = document.getElementById('global-restaurant-display');
                 if (!this.restaurants.length) {
-                    select.innerHTML = '<option value="">Nenhum restaurante</option>';
+                    display.textContent = 'Nenhum restaurante';
                     this.currentRestaurantId = null;
 
                     // Dispatch event so pages can show a creation form
@@ -117,9 +117,10 @@
                 this.currentRestaurantId = savedId && this.restaurants.find(r => r.id === savedId)
                     ? savedId : this.restaurants[0].id;
 
-                select.innerHTML = this.restaurants.map(r =>
-                    `<option value="${r.id}" ${r.id === this.currentRestaurantId ? 'selected' : ''}>${r.nome}</option>`
-                ).join('');
+                const currentRest = this.restaurants.find(r => r.id === this.currentRestaurantId);
+                if (currentRest) {
+                    display.textContent = currentRest.nome;
+                }
 
                 localStorage.setItem('dashboard_restaurant_id', this.currentRestaurantId);
 
@@ -137,10 +138,9 @@
         },
 
         onRestaurantChange() {
-            const select = document.getElementById('global-restaurant-select');
-            this.currentRestaurantId = select.value;
-            localStorage.setItem('dashboard_restaurant_id', this.currentRestaurantId);
-
+            // Not used since select was replaced by static display, kept for interface compatibility
+            const display = document.getElementById('global-restaurant-display');
+            
             const current = this.restaurants.find(r => r.id === this.currentRestaurantId);
             if (current) this.updateStatusIndicator(current.status);
 

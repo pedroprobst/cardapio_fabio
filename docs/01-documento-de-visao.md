@@ -34,13 +34,13 @@ Desenvolver uma **plataforma SaaS (Software as a Service) centralizada, multi-te
 * Cadastro, configuração e gestão autônoma de cardápios digitais interativos.
 * Recepção e processamento de pedidos online com sincronização em tempo real via WebSocket.
 * Atualização imediata de disponibilidade de produtos, imagens e precificação.
-* Acesso a painéis analíticos com métricas de vendas, faturamento e performance de produtos.
+* Acesso a painéis analíticos com métricas faturamento
 
 ### Para Consumidores Finais
 * Navegação fluida em um ecossistema integrado que abriga múltiplos estabelecimentos.
 * Visualização detalhada de produtos com fotografias de alta qualidade, categorização semântica e descrições claras.
-* Fluxo de checkout intuitivo, permitindo a construção de carrinhos de compras eficientes.
-* Rastreamento do status de preparação e entrega do pedido em tempo real.
+* Fluxo de checkout intuitivo, permitindo a construção de carrinhos de compras multi-restaurante (um único pedido contendo sub-pedidos de diferentes estabelecimentos).
+* Rastreamento do status de preparação e entrega de cada sub-pedido em tempo real.
 
 ---
 
@@ -75,7 +75,7 @@ O sistema se posiciona no mercado através de vantagens arquiteturais e de model
 * **Modelo Financeiro Previsível (SaaS):** Estrutura de cobrança por assinatura (flat-fee) que elimina a retenção percentual sobre o Volume Bruto de Mercadorias (GMV) do lojista.
 * **Sincronização Bidirecional em Tempo Real:** Utilização de WebSockets para eliminar o delay entre a requisição do cliente e o terminal do restaurante.
 * **Fricção Zero no Onboarding:** Autenticação delegada via provedores de identidade OAuth (Google) maximizando as taxas de conversão de cadastro.
-* **Gestão Elástica de Mídia:** Armazenamento em nuvem distribuída (AWS S3) garantindo performance de entrega de imagens (Edge Caching) e alta disponibilidade.
+* **Gestão de Mídia:** Armazenamento local de ativos garantindo a entrega de imagens em formato WebP.
 * **Autonomia e White-label Parcial:** Capacidade do lojista personalizar a identidade visual primária do seu espaço digital na plataforma.
 
 ---
