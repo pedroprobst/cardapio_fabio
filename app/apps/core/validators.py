@@ -58,8 +58,13 @@ class CouponValidator:
         if not coupon:
             raise InvalidCouponError()
 
-        if coupon.valido_ate and coupon.valido_ate < datetime.now(timezone.utc):
-            raise CouponExpiredError()
+        if coupon.valido_ate:
+            valido_ate = coupon.valido_ate
+            # MongoDB pode retornar datetime naive — normalizar para UTC
+            if valido_ate.tzinfo is None:
+                valido_ate = valido_ate.replace(tzinfo=timezone.utc)
+            if valido_ate < datetime.now(timezone.utc):
+                raise CouponExpiredError()
 
         if coupon.pedido_minimo and cart_total < Decimal(str(coupon.pedido_minimo)):
             raise CouponMinOrderError(float(coupon.pedido_minimo))
