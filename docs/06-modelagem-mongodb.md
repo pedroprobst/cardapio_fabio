@@ -176,7 +176,7 @@ db.restaurantes.createIndex({ "slug": 1 }, { unique: true })
 db.restaurantes.createIndex({ "dono_id": 1 })
 db.restaurantes.createIndex({ "status": 1 })
 db.restaurantes.createIndex({ "nome": "text", "descricao": "text" }, { default_language: "portuguese" })
-db.restaurantes.createIndex({ "produtos.categoria": 1 })
+db.restaurantes.createIndex({ "pratos.categoria": 1 })
 ```
 
 ---
@@ -265,50 +265,148 @@ A abstração abaixo mapeia como o banco NoSQL implementa o conceito de ligaçã
 erDiagram
     usuarios {
         ObjectId _id PK
-        string email
+        string email UK
+        string senha_hash
         string nome
+        string telefone
         string papel
+        string avatar_url
+        string google_id UK
+        boolean esta_ativo
+        integer tentativas_login_falhas
+        date bloqueado_ate
+        date criado_em
+        date atualizado_em
     }
 
     restaurantes {
         ObjectId _id PK
         ObjectId dono_id FK
         string nome
-        string slug
-        array pratos "Embedded (com adicionais)"
-        array cupons "Embedded"
-        object avaliacao "Embedded (com array avaliacoes)"
-    }
-
-    pratos {
-        ObjectId _id PK
-        string nome
-        decimal preco
-        array adicionais "Embedded"
+        string slug UK
+        string descricao
+        decimal taxa_entrega
+        string tempo_entrega_estimado
+        string status
+        decimal avaliacao_media
+        integer avaliacao_contagem
+        date criado_em
+        date atualizado_em
     }
 
     pedidos {
         ObjectId _id PK
+        string numero_pedido UK
         ObjectId cliente_id FK
         decimal total
+        decimal taxa_entrega
+        decimal valor_desconto
+        string codigo_cupom
         string status
-        array sub_pedidos "Embedded"
+        string metodo_entrega
+        string metodo_pagamento
+        string observacoes
+        date criado_em
+        date atualizado_em
+    }
+
+    enderecos {
+        string rotulo
+        string rua
+        string numero
+        string complemento
+        string bairro
+        string cidade
+        string estado
+        string cep
+        boolean padrao
+    }
+
+    pratos {
+        ObjectId _id
+        string nome
+        decimal preco
+        string categoria
+        boolean esta_disponivel
+        integer estoque
+    }
+
+    adicionais {
+        string nome
+        decimal preco
+    }
+
+    cupons {
+        ObjectId _id
+        string codigo
+        string tipo_desconto
+        decimal valor_desconto
+        decimal pedido_minimo
+        integer max_usos
+        integer contagem_usos
+        boolean esta_ativo
+    }
+
+    avaliacoes {
+        ObjectId _id
+        ObjectId cliente_id FK
+        ObjectId pedido_id FK
+        integer nota
+        string comentario
+        date criado_em
     }
 
     sub_pedidos {
         ObjectId restaurante_id FK
-        string status
         decimal total
-        array itens "Snapshot Estrito com extras"
+        decimal taxa_entrega
+        decimal valor_desconto
+        string codigo_cupom
+        string status
     }
 
-    usuarios ||--o{ restaurantes : "Detém a Propriedade"
-    usuarios ||--o{ pedidos : "Inicia uma Transação"
-    restaurantes ||--o{ pratos : "Encapsula o Objeto"
-    pedidos ||--o{ sub_pedidos : "Desmembra em Múltiplos Restaurantes"
-    sub_pedidos }o--|| restaurantes : "Roteado para"
-```
+    itens_pedido {
+        ObjectId prato_id
+        string nome
+        decimal preco
+        integer quantidade
+        decimal subtotal
+    }
 
+    extras {
+        string nome
+        decimal preco
+    }
+
+    %% Coleções principais
+    usuarios |o--|| restaurantes : "é dono de"
+    usuarios ||--o{ pedidos : "realiza"
+
+    %% Documentos embutidos em usuários
+    usuarios ||--o{ enderecos : "possui"
+
+    %% Documentos embutidos em restaurantes
+    restaurantes ||--o{ pratos : "oferece"
+    pratos ||--o{ adicionais : "permite"
+    restaurantes ||--|| enderecos : possui
+    restaurantes ||--o{ cupons : "disponibiliza"
+
+    restaurantes ||--o{ avaliacoes : "recebe"
+    usuarios ||--o{ avaliacoes : "faz"
+
+    %% Documentos embutidos em pedidos
+    pedidos ||--o{ sub_pedidos : "contém"
+
+    %% Referência para restaurante
+    restaurantes ||--o{ sub_pedidos : "atende"
+
+    sub_pedidos ||--o{ itens_pedido : "possui"
+    itens_pedido ||--o{ extras : "inclui"
+
+    %% Cor branca para todos os elementos
+    classDef default fill:#ffffff,stroke:#000000;
+
+```
 ---
 
 ## 6.6 Validação de Schema Nativa

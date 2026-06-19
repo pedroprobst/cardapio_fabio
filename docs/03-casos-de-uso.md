@@ -1,235 +1,166 @@
 # 3. Casos de Uso
 
-Este documento detalha as interações comportamentais entre os atores (usuários) e o sistema Cardápio Online, descrevendo os fluxos principais e alternativos da plataforma.
+Esta seção descreve as principais interações entre os usuários e o sistema Cardápio Online.
+
+## Diagrama de Casos de Uso
+
+![Diagrama de Casos de Uso](cardapio-caso-de-uso.drawio.png)
+
+## 3.1 Atores
+
+* **Cliente:** usuário que consulta os cardápios e realiza pedidos.
+* **Administrador do Restaurante:** responsável pelo gerenciamento dos produtos, cupons e pedidos do restaurante.
 
 ---
 
-## Sumário
+## 3.2 Casos de Uso
 
-- [3.1 Diagrama de Casos de Uso](#31-diagrama-de-casos-de-uso)
-- [3.2 Detalhamento dos Casos de Uso](#32-detalhamento-dos-casos-de-uso)
+### UC01 – Cadastrar-se
 
----
+**Atores:** Cliente e Administrador do Restaurante
 
-## 3.1 Diagrama de Casos de Uso
-
-O diagrama abaixo mapeia as macrofuncionalidades expostas pelo sistema e os atores com permissão para executá-las.
-
-```mermaid
-classDiagram
-    %% Atores
-    class Cliente {
-        +Cadastrar-se()
-        +Fazer Login()
-        +Visualizar Restaurantes()
-        +Acessar Cardápio()
-        +Adicionar ao Carrinho()
-        +Finalizar Pedido()
-        +Acompanhar Pedido()
-    }
-
-    class Gestor {
-        +Cadastrar-se()
-        +Fazer Login()
-        +Gerenciar Restaurante()
-        +Gerenciar Produtos()
-        +Gerenciar Pedidos()
-    }
-
-    %% Fronteira do Sistema
-    class Sistema {
-        +UC01 Cadastrar-se()
-        +UC02 Fazer Login()
-        +UC03 Visualizar Restaurantes()
-        +UC04 Acessar Cardápio()
-        +UC05 Adicionar ao Carrinho()
-        +UC06 Finalizar Pedido()
-        +UC07 Acompanhar Pedido()
-        +UC08 Gerenciar Restaurante()
-        +UC09 Gerenciar Produtos()
-        +UC10 Gerenciar Pedidos()
-    }
-
-    %% Relacionamentos
-    Cliente --> Sistema
-    Gestor --> Sistema
-```
-
----
-
-## 3.2 Detalhamento dos Casos de Uso
-
-### UC01 — Cadastrar-se na Plataforma
-
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente / Gestor |
-| **Pré-condição** | Usuário não autenticado e não cadastrado previamente. |
-| **Pós-condição** | Identidade do usuário criada no banco de dados e sessão inicializada com emissão de token JWT. |
+**Descrição:** Permite que novos usuários realizem seu cadastro no sistema.
 
 **Fluxo Principal:**
-1. O usuário acessa a página de registro do sistema.
-2. O sistema exibe o formulário solicitando tipo de perfil (`customer` ou `owner`).
-3. O usuário preenche as credenciais padrão (nome, e-mail, senha) ou seleciona a integração OAuth 2.0 (Google).
-4. O sistema processa a sanitização e validação das entradas (unicidade de e-mail e políticas de senha forte).
-5. O sistema persiste a entidade, gera o payload JWT e devolve os tokens.
-6. O usuário é redirecionado de acordo com a sua *role* específica.
 
-**Fluxos de Exceção:**
-* *Conflito de Identidade:* Caso o e-mail exista, o processo é abortado com a emissão do status HTTP 409 Conflict e aviso em interface.
-* *Validação Falha:* Dados inconsistentes geram feedback inline nos campos do formulário (HTTP 400 Bad Request).
+1. O usuário acessa a tela de cadastro.
+2. Informa seus dados.
+3. O sistema valida as informações.
+4. O cadastro é realizado com sucesso.
 
----
+**Fluxo Alternativo:**
 
-### UC02 — Fazer Login
-
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente / Gestor |
-| **Pré-condição** | Identidade de usuário previamente registrada e não revogada. |
-| **Pós-condição** | Sessão ativa e cliente munido do token de autorização. |
-
-**Fluxo Principal:**
-1. O usuário submete suas credenciais na página de login ou clica na autenticação integrada.
-2. O serviço de autenticação resolve o hash criptográfico ou valida a assinatura do token do provedor (OAuth).
-3. Após confirmação, um par de JWT (Access e Refresh) é emitido.
-4. O frontend armazena os tokens de forma segura e injeta os headers nas próximas requisições.
-5. O fluxo termina no dashboard correspondente ao tipo de usuário.
-
-**Fluxos de Exceção:**
-* *Falha de Credencial:* Retorno genérico de segurança, sem indicar se a falha foi no e-mail ou na senha.
-* *Account Lockout:* Bloqueio protetivo temporário mediante múltiplas tentativas frustradas.
+* Caso os dados estejam incorretos ou o e-mail já esteja cadastrado, o sistema informa o erro.
 
 ---
 
-### UC03 — Visualizar Ecossistema de Restaurantes
+### UC02 – Fazer Login
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente |
-| **Pré-condição** | O cliente possui acesso público à internet (requisição não autenticada). |
-| **Pós-condição** | Lista segmentada de estabelecimentos visível e paginada. |
+**Atores:** Cliente e Administrador do Restaurante
+
+**Descrição:** Permite que usuários cadastrados acessem o sistema.
 
 **Fluxo Principal:**
-1. O cliente visita a interface pública de descoberta (Home).
-2. O sistema constrói e despacha a query com otimização no MongoDB, buscando tenants ativos.
-3. A interface apresenta a grid de estabelecimentos utilizando técnica de Lazy Loading para os assets.
-4. O cliente utiliza o motor de busca ou filtros semânticos para refinar a apresentação.
+
+1. O usuário informa e-mail e senha.
+2. O sistema verifica os dados.
+3. O acesso é liberado.
+
+**Fluxo Alternativo:**
+
+* Caso os dados estejam incorretos, o sistema informa que o login não foi realizado.
 
 ---
 
-### UC04 — Acessar Cardápio Detalhado
+### UC03 – Visualizar Restaurantes
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente |
-| **Pré-condição** | Seleção de um restaurante válido listado. |
-| **Pós-condição** | Renderização completa dos produtos, organizados por taxonomia. |
+**Ator:** Cliente
+
+**Descrição:** Permite consultar os restaurantes disponíveis.
 
 **Fluxo Principal:**
-1. O cliente aciona o hiperlink (slug ou ID) de um restaurante específico.
-2. A aplicação resolve os metadados do restaurante juntamente com seu array de produtos.
-3. Os produtos são hierarquizados dinamicamente através de abas de categorias.
-4. O usuário interage com o modal de detalhes para visualizar descrições complexas e precificação de cada item.
+
+1. O cliente acessa a página inicial.
+2. O sistema exibe a lista de restaurantes.
+3. O cliente escolhe um restaurante para visualizar.
 
 ---
 
-### UC05 — Gestão Assíncrona do Carrinho de Compras
+### UC04 – Visualizar Cardápios
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente (Sessão Ativa / Inativa) |
-| **Pré-condição** | Produto em visualização na página de cardápio. |
-| **Pós-condição** | Objeto inserido na memória local e reconciliado com o backend. |
+**Ator:** Cliente
+
+**Descrição:** Permite consultar os produtos oferecidos por um restaurante.
 
 **Fluxo Principal:**
-1. O usuário preenche a intenção de compra acionando o botão "Adicionar".
-2. O módulo de Carrinho injeta o item com a quantidade especificada.
-3. Elementos reativos da interface (Badges e Subtotal) são recalculados em tempo de execução via JavaScript.
 
-**Fluxo Alternativo (Inclusão de Adicionais):**
-1. Caso o produto selecionado possua lista de adicionais/extras configurada.
-2. A interface exibe as opções de adicionais com seus respectivos preços.
-3. O cliente seleciona os extras desejados.
-4. O módulo de Carrinho injeta o item juntamente com a composição dos extras escolhidos, ajustando dinamicamente o subtotal final.
+1. O cliente seleciona um restaurante.
+2. O sistema apresenta os produtos disponíveis.
+3. O cliente visualiza as informações dos itens.
 
 ---
 
-### UC06 — Finalização Segura de Pedido (Checkout)
+### UC05 – Adicionar ao Carrinho
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente (Sessão Ativa Exigida) |
-| **Pré-condição** | Entidade de Carrinho contendo, no mínimo, 1 unidade de produto. |
-| **Pós-condição** | Registro transacional do Pedido persistido e propagado via WebSocket. |
+**Ator:** Cliente
+
+**Descrição:** Permite adicionar produtos ao carrinho de compras.
 
 **Fluxo Principal:**
-1. Acesso à interface de revisão de carrinho (agrupamento visual por restaurante gerando `sub_pedidos`).
-2. O cliente insere instruções operacionais (observações) e seleciona a logística (Delivery/Retirada), forma de pagamento e aplica cupons de desconto aplicáveis a cada estabelecimento.
-3. Acionamento do botão "Finalizar Pedido".
-4. O backend realiza processamento atômico: valida premissas, congela preços de itens e adicionais (snapshot) e persiste o documento principal contendo os sub-pedidos no banco de dados.
-5. O sistema publica no Channel Layer a criação do pedido, emitindo sinalização WebSocket independentemente para a interface de cada restaurante.
-6. A interface final exibe recibo transacional e código de rastreamento com a divisão por restaurante.
+
+1. O cliente escolhe um produto.
+2. Define a quantidade desejada.
+3. O produto é adicionado ao carrinho.
 
 ---
 
-### UC07 — Acompanhamento Logístico em Tempo Real
+### UC06 – Fazer Pedido
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Cliente |
-| **Pré-condição** | Posse de uma ordem de serviço válida. |
-| **Pós-condição** | Interface atualizada através de eventos reativos. |
+**Ator:** Cliente
+
+**Descrição:** Permite finalizar a compra dos itens adicionados ao carrinho.
 
 **Fluxo Principal:**
-1. O cliente monitora o painel de histórico de pedidos.
-2. Uma conexão persistente (WebSocket) é mantida escutando eventos de alteração de estado no servidor.
-3. Quando o gestor do restaurante tramita o status (ex: `pending` para `preparing`), o evento é processado.
-4. O cliente percebe a alteração visual na timeline da ordem instantaneamente, sem reload da página.
+
+1. O cliente acessa o carrinho.
+2. Confirma os produtos.
+3. Escolhe a forma de entrega e pagamento.
+4. O pedido é registrado pelo sistema.
 
 ---
 
-### UC08 — Configuração e Gestão do Tenant (Restaurante)
+### UC07 – Acompanhar Pedido
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Gestor (Role Owner) |
-| **Pré-condição** | Sessão ativa sob o escopo hierárquico correto. |
-| **Pós-condição** | Parâmetros corporativos e visuais estabilizados. |
+**Ator:** Cliente
+
+**Descrição:** Permite acompanhar o andamento dos pedidos realizados.
 
 **Fluxo Principal:**
-1. O gestor navega até as ferramentas de backoffice.
-2. O usuário preenche ou retifica formulários complexos que modelam a operação do seu restaurante.
-3. As requisições disparam *upload* da imagem de *cover* de forma local e serializada.
-4. O sistema avaliza todas as constraints e atualiza os metadados do documento no MongoDB.
+
+1. O cliente acessa seus pedidos.
+2. O sistema apresenta o status atual.
+3. O cliente acompanha as atualizações até a entrega.
 
 ---
 
-### UC09 — Gestão do Catálogo de Produtos
+### UC08 – Manter Produto
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Gestor (Role Owner) |
-| **Pré-condição** | Perfil de tenant ativado. |
-| **Pós-condição** | Portfólio atualizado refletindo em todas as interfaces públicas de maneira eventual. |
+**Ator:** Administrador do Restaurante
+
+**Descrição:** Permite cadastrar, editar e remover produtos do cardápio.
 
 **Fluxo Principal:**
-1. O gestor interage com o painel de produtos do tenant.
-2. Ações de Criação, Leitura, Atualização ou Exclusão (Soft Delete / Disponibilidade) são aplicadas a itens da coleção, incluindo a gestão de listas de Adicionais/Extras com precificação específica.
-3. O serviço de retaguarda sanitiza os descritivos, resolve o armazenamento das imagens individuais e reconcilia a base.
+
+1. O administrador acessa a área de produtos.
+2. Realiza a inclusão, alteração ou exclusão de um item.
+3. O sistema salva as alterações.
 
 ---
 
-### UC10 — Operação Transacional (Gestão de Pedidos)
+### UC09 – Gerenciar Pedidos
 
-| Propriedade | Descrição |
-| --- | --- |
-| **Ator Primário** | Gestor (Role Owner) |
-| **Pré-condição** | Ordens recebidas e em processamento. |
-| **Pós-condição** | Alteração no estado global do pedido sincronizada no cluster. |
+**Ator:** Administrador do Restaurante
+
+**Descrição:** Permite visualizar e atualizar os pedidos recebidos.
 
 **Fluxo Principal:**
-1. O gestor visualiza os itens sob uma topologia visual de Kanban (por colunas de status) atrelada aos sockets de comunicação.
-2. A cada trâmite operacional físico do restaurante, o operador aciona a transição no sistema.
-3. O software garante a integridade de transição (evitando avanços inválidos).
-4. O sistema registra a auditoria do *timestamp* e retransmite o pulso via WebSocket ao consumidor.
+
+1. O administrador consulta os pedidos.
+2. Seleciona um pedido.
+3. Atualiza seu status.
+4. O sistema registra a alteração.
+
+---
+
+### UC10 – Manter Cupom
+
+**Ator:** Administrador do Restaurante
+
+**Descrição:** Permite cadastrar, editar e remover cupons de desconto.
+
+**Fluxo Principal:**
+
+1. O administrador acessa a área de cupons.
+2. Cadastra ou altera um cupom.
+3. Define as regras de utilização.
+4. O sistema salva as informações.
