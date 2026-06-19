@@ -105,26 +105,41 @@
 
         if (subs.length > 0) {
             subs.forEach(sp => {
+                const isCancelled = sp.status === 'cancelado';
+                const textColorClass = isCancelled ? 'text-gray-400 line-through' : 'text-gray-700';
+                const priceColorClass = isCancelled ? 'text-gray-400 line-through' : 'text-gray-500';
+
                 if (subs.length > 1) {
-                    itemsHtml += `<p class="text-xs font-bold text-red-500 flex items-center gap-1 mt-2 first:mt-0"><i data-lucide="store" class="w-3 h-3"></i> ${sp.restaurante_nome || 'Restaurante'}</p>`;
+                    itemsHtml += `<p class="text-xs font-bold ${isCancelled ? 'text-gray-400' : 'text-red-500'} flex items-center gap-1 mt-2 first:mt-0"><i data-lucide="store" class="w-3 h-3"></i> ${sp.restaurante_nome || 'Restaurante'} ${isCancelled ? '(Cancelado)' : ''}</p>`;
                 }
                 sp.itens.forEach(i => {
-                    itemsHtml += `<div class="flex justify-between text-sm"><span class="text-gray-700">${i.quantidade}x ${i.nome}</span><span class="text-gray-500">${formatMoney(i.subtotal)}</span></div>`;
+                    itemsHtml += `<div class="flex justify-between text-sm"><span class="${textColorClass}">${i.quantidade}x ${i.nome}</span><span class="${priceColorClass}">${formatMoney(i.subtotal)}</span></div>`;
                 });
-                // Acumular valores de cada sub-pedido
-                sp.itens.forEach(i => { subtotal += parseFloat(i.subtotal || 0); });
-                taxaEntrega += parseFloat(sp.taxa_entrega || 0);
-                desconto += parseFloat(sp.valor_desconto || 0);
-                if (sp.codigo_cupom) codigosCupom.push(sp.codigo_cupom);
+                
+                if (!isCancelled) {
+                    // Acumular valores apenas de sub-pedidos não cancelados
+                    sp.itens.forEach(i => { subtotal += parseFloat(i.subtotal || 0); });
+                    taxaEntrega += parseFloat(sp.taxa_entrega || 0);
+                    desconto += parseFloat(sp.valor_desconto || 0);
+                    if (sp.codigo_cupom) codigosCupom.push(sp.codigo_cupom);
+                }
             });
         } else {
+            const isCancelled = order.status === 'cancelado';
+            const textColorClass = isCancelled ? 'text-gray-400 line-through' : 'text-gray-700';
+            const priceColorClass = isCancelled ? 'text-gray-400 line-through' : 'text-gray-500';
+
             (order.itens || []).forEach(i => {
-                itemsHtml += `<div class="flex justify-between text-sm"><span class="text-gray-700">${i.quantidade}x ${i.nome}</span><span class="text-gray-500">${formatMoney(i.subtotal)}</span></div>`;
-                subtotal += parseFloat(i.subtotal || 0);
+                itemsHtml += `<div class="flex justify-between text-sm"><span class="${textColorClass}">${i.quantidade}x ${i.nome}</span><span class="${priceColorClass}">${formatMoney(i.subtotal)}</span></div>`;
+                if (!isCancelled) {
+                    subtotal += parseFloat(i.subtotal || 0);
+                }
             });
-            taxaEntrega = parseFloat(order.taxa_entrega || 0);
-            desconto = parseFloat(order.valor_desconto || 0);
-            if (order.codigo_cupom) codigosCupom.push(order.codigo_cupom);
+            if (!isCancelled) {
+                taxaEntrega = parseFloat(order.taxa_entrega || 0);
+                desconto = parseFloat(order.valor_desconto || 0);
+                if (order.codigo_cupom) codigosCupom.push(order.codigo_cupom);
+            }
         }
 
         document.getElementById('order-items').innerHTML = itemsHtml;
@@ -149,8 +164,10 @@
             </div>`;
         }
 
+        const finalTotal = Math.max(0, subtotal + taxaEntrega - desconto);
+
         document.getElementById('order-price-breakdown').innerHTML = breakdownHtml;
-        document.getElementById('order-total').textContent = formatMoney(order.total);
+        document.getElementById('order-total').textContent = formatMoney(finalTotal);
         lucide.createIcons();
     }
 

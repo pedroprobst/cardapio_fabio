@@ -57,14 +57,17 @@
         // Preferir sub_pedidos — renderizar itens agrupados por restaurante
         const subs = order.sub_pedidos || [];
         if (subs.length > 0) {
-            return subs.map(sp => `
+            return subs.map(sp => {
+                const isCancelled = sp.status === 'cancelado';
+                const textColorClass = isCancelled ? 'text-gray-400 line-through' : 'text-gray-500';
+                return `
                 <div class="mb-2 last:mb-0">
-                    <p class="text-[10px] font-bold text-red-500 flex items-center gap-1 mb-0.5">
-                        <i data-lucide="store" class="w-3 h-3"></i> ${sp.restaurante_nome || 'Restaurante'}
+                    <p class="text-[10px] font-bold ${isCancelled ? 'text-gray-400' : 'text-red-500'} flex items-center gap-1 mb-0.5">
+                        <i data-lucide="store" class="w-3 h-3"></i> ${sp.restaurante_nome || 'Restaurante'} ${isCancelled ? '(Cancelado)' : ''}
                         <span class="ml-auto px-1.5 py-0.5 rounded text-[8px] font-semibold ${statusBg[sp.status]}">${statusLabels[sp.status]}</span>
                     </p>
                     ${sp.itens.map(i => `
-                        <p class="text-[10px] text-gray-500 pl-3">
+                        <p class="text-[10px] ${textColorClass} pl-3">
                             <span class="font-bold">${i.quantidade}x</span> ${i.nome}
                             ${i.extras && i.extras.length > 0 ?
                                 `<span class="text-red-400 italic font-medium"> (+ ${i.extras.map(e => e.nome).join(', ')})</span>`
@@ -73,11 +76,14 @@
                         </p>
                     `).join('')}
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
         // Fallback para itens flat (legado antigo)
+        const isCancelled = order.status === 'cancelado';
+        const textColorClass = isCancelled ? 'text-gray-400 line-through' : 'text-gray-500';
         return (order.itens || []).map(i => `
-            <p class="text-[10px] text-gray-500">
+            <p class="text-[10px] ${textColorClass}">
                 <span class="font-bold">${i.quantidade}x</span> ${i.nome}
                 ${i.extras && i.extras.length > 0 ?
                     `<span class="text-red-400 italic font-medium"> (+ ${i.extras.map(e => e.nome).join(', ')})</span>`
@@ -114,6 +120,20 @@
         return '';
     }
 
+    function getCalculatedTotal(order) {
+        const subs = order.sub_pedidos || [];
+        if (subs.length > 0) {
+            let total = 0;
+            subs.forEach(sp => {
+                if (sp.status !== 'cancelado') {
+                    total += parseFloat(sp.total || 0);
+                }
+            });
+            return total;
+        }
+        return order.status !== 'cancelado' ? parseFloat(order.total || 0) : 0;
+    }
+
     async function loadOrders() {
         if (!Auth.isAuthenticated()) { window.location.href = '/login/'; return; }
         try {
@@ -129,7 +149,9 @@
             }
             
             empty.classList.add('hidden');
-            list.innerHTML = data.results.map(o => `
+            list.innerHTML = data.results.map(o => {
+                const finalTotal = getCalculatedTotal(o);
+                return `
                 <div class="bg-white rounded-2xl p-5 card-hover fade-in border border-gray-100 shadow-card">
                     <a href="/pedido/${o.numero_pedido}/acompanhar/" class="flex items-center justify-between block mb-4">
                         <div>
@@ -138,12 +160,13 @@
                             <div class="mt-1 space-y-0.5">
                                 ${renderOrderItems(o)}
                             </div>
-                            <!-- Total do pedido vindo do snapshot do banco -->
-                            <p class="text-xs font-bold text-gray-700 mt-2">Total: ${formatMoney(o.total)}</p>
+                            <!-- Total do pedido recalculado para excluir cancelados -->
+                            <p class="text-xs font-bold text-gray-700 mt-2">Total: ${formatMoney(finalTotal)}</p>
                             <p class="text-[10px] text-gray-400 mt-1">${new Date(o.criado_em).toLocaleDateString('pt-BR')} às ${new Date(o.criado_em).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}</p>
                         </div>
                         <span class="px-3 py-1 rounded-lg text-xs font-semibold ${statusBg[o.status]}">${statusLabels[o.status]}</span>
-                    </a>
+                    </a>`;
+            }).join('');
                     <div class="flex flex-col gap-2 pt-4 border-t border-gray-100">
                         <button onclick="reorder(${JSON.stringify(o.sub_pedidos || []).replace(/"/g, '&quot;')}, ${JSON.stringify(o.itens || []).replace(/"/g, '&quot;')}, '${getFirstRestaurantId(o)}', '${(o.restaurante_nome || '').replace(/'/g, "\\'")}')" class="w-full px-3 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 text-xs font-medium transition-colors flex items-center justify-center gap-2 border border-gray-200">
                             <i data-lucide="rotate-cw" class="w-4 h-4"></i> Refazer Pedido
