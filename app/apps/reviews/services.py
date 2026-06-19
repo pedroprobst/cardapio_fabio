@@ -78,6 +78,17 @@ class ReviewService:
 
         return avaliacao.to_dict()
 
+    def get_user_review_for_order(
+        self,
+        customer_id: str,
+        pedido_id: str,
+    ) -> dict | None:
+        """Retorna a avaliação existente de um cliente para um pedido. None se não existir."""
+        avaliacao = self.repo.buscar_por_cliente_e_pedido(customer_id, pedido_id)
+        if avaliacao:
+            return avaliacao.to_dict()
+        return None
+
     def list_restaurant_reviews(
         self, restaurant_id: str, page: int = 1, page_size: int = 10,
     ) -> dict:

@@ -161,24 +161,54 @@
         }
     }
     
-    // Lógica de Avaliação (Estrelas)
+    function setStarRating(rating) {
+        document.getElementById('review-rating').value = rating;
+        document.querySelectorAll('.star-btn').forEach(b => {
+            const r = parseInt(b.dataset.rating);
+            if (r <= rating) { b.classList.add('text-amber-400'); b.classList.remove('text-gray-300'); }
+            else { b.classList.add('text-gray-300'); b.classList.remove('text-amber-400'); }
+        });
+    }
+
+    // Lógica de clique nas estrelas
     document.querySelectorAll('.star-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const rating = parseInt(btn.dataset.rating);
-            document.getElementById('review-rating').value = rating;
-            document.querySelectorAll('.star-btn').forEach(b => {
-                const r = parseInt(b.dataset.rating);
-                if (r <= rating) { b.classList.add('text-amber-400'); b.classList.remove('text-gray-300'); }
-                else { b.classList.add('text-gray-300'); b.classList.remove('text-amber-400'); }
-            });
+        btn.addEventListener('click', () => {
+            setStarRating(parseInt(btn.dataset.rating));
         });
     });
 
-    function openReviewModal(orderId, restaurantId, restaurantName) {
+    async function openReviewModal(orderId, restaurantId, restaurantName) {
         document.getElementById('review-order-id').value = orderId;
         document.getElementById('review-restaurant-id').value = restaurantId;
         document.getElementById('review-restaurant-name').textContent = restaurantName;
+
+        // Resetar estado visual do modal antes de buscar dados
+        setStarRating(0);
+        document.getElementById('review-comment').value = '';
+        document.getElementById('btn-submit-review').textContent = 'Carregando...';
+        document.getElementById('btn-submit-review').disabled = true;
+        document.querySelector('#review-modal h2').textContent = 'Avaliar Pedido';
         document.getElementById('review-modal').classList.remove('hidden');
+
+        // Busca avaliação existente para pré-preencher o formulário
+        try {
+            const res = await API.get(`/api/reviews/my-review/?pedido_id=${orderId}`);
+            if (res.ok) {
+                const data = await res.json();
+                // Pré-preenche com dados da avaliação existente
+                setStarRating(data.nota || 0);
+                document.getElementById('review-comment').value = data.comentario || '';
+                document.querySelector('#review-modal h2').textContent = 'Editar Avaliação';
+                document.getElementById('btn-submit-review').textContent = 'Salvar Alterações';
+            } else {
+                // Sem avaliação prévia — formulário limpo
+                document.getElementById('btn-submit-review').textContent = 'Enviar Avaliação';
+            }
+        } catch (e) {
+            document.getElementById('btn-submit-review').textContent = 'Enviar Avaliação';
+        } finally {
+            document.getElementById('btn-submit-review').disabled = false;
+        }
     }
 
     function closeReviewModal() {
@@ -186,6 +216,8 @@
         document.getElementById('review-form').reset();
         document.getElementById('review-rating').value = 0;
         document.querySelectorAll('.star-btn').forEach(b => { b.classList.add('text-gray-300'); b.classList.remove('text-amber-400'); });
+        document.querySelector('#review-modal h2').textContent = 'Avaliar Pedido';
+        document.getElementById('btn-submit-review').textContent = 'Enviar Avaliação';
     }
 
     document.getElementById('review-form').addEventListener('submit', async (e) => {
